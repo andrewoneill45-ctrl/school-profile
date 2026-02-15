@@ -17,70 +17,59 @@ const schoolsData = schoolsRaw.filter(s => {
   const t = (s.type || '').toLowerCase();
   return !t.includes('independent') && !t.includes('non-maintained special');
 });
-
 const schoolsByUrn = {};
 schoolsData.forEach(s => { schoolsByUrn[String(s.urn)] = s; });
 
-/* ─── Hover Card (inline) ──────────────────────── */
+/* ─── Hover Card ───────────────────────────────── */
 const HoverCard = ({ school }) => {
   const s = school;
   const isSec = s.phase === 'Secondary' || s.phase === 'All-through';
   const isPri = s.phase === 'Primary';
-
-  const ofstedColor = { Outstanding: '#0d7a42', Good: '#1d5a9e', 'Requires improvement': '#e8920e', Inadequate: '#cc3333' };
+  const oC = { Outstanding: '#0d7a42', Good: '#1d5a9e', 'Requires improvement': '#e8920e', Inadequate: '#cc3333' };
 
   return (
-    <div style={{ fontFamily: "'Source Sans 3', sans-serif", minWidth: 220, maxWidth: 280, padding: '4px 2px' }}>
-      {/* Name and phase */}
+    <div style={{ fontFamily: "'Source Sans 3', sans-serif", minWidth: 230, maxWidth: 290, padding: '4px 2px' }}>
       <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a', lineHeight: 1.25, marginBottom: 4 }}>{s.name}</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '1px 8px', borderRadius: 99, background: PHASE_COLORS[s.phase] || '#64748b', color: 'white' }}>{s.phase}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '1px 8px', borderRadius: 99, background: PHASE_COLORS[s.phase] || '#64748b', color: 'white' }}>{s.phase}</span>
         {s.ofsted && s.ofsted !== 'Not inspected' && (
-          <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '1px 8px', borderRadius: 99, background: ofstedColor[s.ofsted] || '#94a3b8', color: 'white' }}>{s.ofsted}</span>
+          <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '1px 8px', borderRadius: 99, background: oC[s.ofsted] || '#94a3b8', color: 'white' }}>{s.ofsted}</span>
         )}
       </div>
-
-      {/* Key info */}
       <div style={{ fontSize: '0.75rem', color: '#475569', lineHeight: 1.5 }}>
         {s.la && <div>{s.la}{s.town && s.town !== s.la ? ` · ${s.town}` : ''}</div>}
-        {s.type && <div style={{ color: '#94a3b8' }}>{s.type}</div>}
+        <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>{s.type}</div>
       </div>
-
-      {/* Stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 12px', marginTop: 8, paddingTop: 8, borderTop: '1px solid #e2e8f0' }}>
-        {s.pupils != null && <StatMini label="Pupils" value={s.pupils.toLocaleString()} />}
-        {s.fsm_pct != null && <StatMini label="FSM" value={s.fsm_pct + '%'} />}
-        {s.trust && <div style={{ gridColumn: '1 / -1' }}><StatMini label="Trust" value={s.trust.length > 35 ? s.trust.substring(0, 35) + '…' : s.trust} /></div>}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '3px 12px', marginTop: 7, paddingTop: 7, borderTop: '1px solid #e2e8f0' }}>
+        {s.pupils != null && <HM label="Pupils" value={s.pupils.toLocaleString()} />}
+        {s.fsm_pct != null && <HM label="FSM" value={s.fsm_pct + '%'} />}
       </div>
-
-      {/* Performance metrics */}
-      {isSec && (s.attainment8 != null || s.progress8 != null) && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 12px', marginTop: 6, paddingTop: 6, borderTop: '1px solid #e2e8f0' }}>
-          {s.attainment8 != null && <StatMini label="Attainment 8" value={s.attainment8.toFixed(1)} highlight />}
-          {s.progress8 != null && <StatMini label="Progress 8" value={(s.progress8 > 0 ? '+' : '') + s.progress8.toFixed(2)} highlight />}
-          {s.basics_94 != null && <StatMini label="Eng & Maths 4+" value={s.basics_94 + '%'} />}
-          {s.basics_95 != null && <StatMini label="Eng & Maths 5+" value={s.basics_95 + '%'} />}
+      {isSec && (s.attainment8 != null || s.p8_prev != null) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '3px 12px', marginTop: 5, paddingTop: 5, borderTop: '1px solid #e2e8f0' }}>
+          {s.attainment8 != null && <HM label="Attainment 8" value={s.attainment8.toFixed(1)} big />}
+          {s.p8_prev != null && <HM label="P8 (2024)" value={(s.p8_prev > 0 ? '+' : '') + s.p8_prev.toFixed(2)} big />}
+          {s.basics_94 != null && <HM label="4+ Eng & Ma" value={s.basics_94 + '%'} />}
+          {s.basics_95 != null && <HM label="5+ Eng & Ma" value={s.basics_95 + '%'} />}
         </div>
       )}
-
       {isPri && (s.ks2_rwm_exp != null || s.ks2_read_avg != null) && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 12px', marginTop: 6, paddingTop: 6, borderTop: '1px solid #e2e8f0' }}>
-          {s.ks2_rwm_exp != null && <StatMini label="RWM Expected" value={s.ks2_rwm_exp + '%'} highlight />}
-          {s.ks2_rwm_high != null && <StatMini label="RWM Higher" value={s.ks2_rwm_high + '%'} />}
-          {s.ks2_read_avg != null && <StatMini label="Reading" value={s.ks2_read_avg.toFixed(0)} />}
-          {s.ks2_math_avg != null && <StatMini label="Maths" value={s.ks2_math_avg.toFixed(0)} />}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '3px 12px', marginTop: 5, paddingTop: 5, borderTop: '1px solid #e2e8f0' }}>
+          {s.ks2_rwm_exp != null && <HM label="RWM Expected" value={s.ks2_rwm_exp + '%'} big />}
+          {s.ks2_rwm_high != null && <HM label="RWM Higher" value={s.ks2_rwm_high + '%'} />}
+          {s.ks2_read_avg != null && <HM label="Reading" value={s.ks2_read_avg.toFixed(0)} />}
+          {s.ks2_writ_exp != null && <HM label="Writing" value={s.ks2_writ_exp + '%'} />}
+          {s.ks2_mat_exp != null && <HM label="Maths" value={s.ks2_mat_exp + '%'} />}
         </div>
       )}
-
-      <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 6, textAlign: 'center' }}>Click for full profile</div>
+      <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 6, textAlign: 'center' }}>Click for full profile</div>
     </div>
   );
 };
 
-const StatMini = ({ label, value, highlight }) => (
+const HM = ({ label, value, big }) => (
   <div>
-    <div style={{ fontSize: '0.62rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>{label}</div>
-    <div style={{ fontSize: highlight ? '0.92rem' : '0.8rem', fontWeight: highlight ? 800 : 600, color: '#0f172a', lineHeight: 1.3 }}>{value}</div>
+    <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>{label}</div>
+    <div style={{ fontSize: big ? '0.95rem' : '0.82rem', fontWeight: big ? 800 : 600, color: '#0f172a', lineHeight: 1.3 }}>{value}</div>
   </div>
 );
 
@@ -109,26 +98,23 @@ const App = () => {
     })),
   }), [filtered]);
 
-  // ─── Stats ──────────────────────────────────────
   const stats = useMemo(() => {
     const a = filtered, total = a.length;
-    const phases = {}, ofstedCounts = {}, laCounts = {}, trustCounts = {};
+    const phases = {}, ofstedCounts = {};
     let a8 = [], p8 = [], fsm = [], pupils = [], ks2rwm = [], ks2read = [], ks2math = [];
     a.forEach(s => {
       phases[s.phase || 'Other'] = (phases[s.phase || 'Other'] || 0) + 1;
       if (s.ofsted && s.ofsted !== 'Not inspected') ofstedCounts[s.ofsted] = (ofstedCounts[s.ofsted] || 0) + 1;
-      if (s.la) laCounts[s.la] = (laCounts[s.la] || 0) + 1;
-      if (s.trust) trustCounts[s.trust] = (trustCounts[s.trust] || 0) + 1;
       if (s.attainment8 != null) a8.push(s.attainment8);
-      if (s.progress8 != null) p8.push(s.progress8);
+      if (s.p8_prev != null) p8.push(s.p8_prev);
       if (s.fsm_pct != null) fsm.push(s.fsm_pct);
       if (s.pupils != null) pupils.push(s.pupils);
       if (s.ks2_rwm_exp != null) ks2rwm.push(s.ks2_rwm_exp);
       if (s.ks2_read_avg != null) ks2read.push(s.ks2_read_avg);
-      if (s.ks2_math_avg != null) ks2math.push(s.ks2_math_avg);
+      if (s.ks2_mat_exp != null) ks2math.push(s.ks2_mat_exp);
     });
     const avg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length) : null;
-    const med = a => { if (!a.length) return null; const s = [...a].sort((x,y) => x-y); const m = Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+    const med = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
     const ofT = Object.values(ofstedCounts).reduce((x, y) => x + y, 0);
     return {
       total, phases, ofstedCounts, ofstedTotal: ofT,
@@ -138,11 +124,11 @@ const App = () => {
       avgKS2RWM: avg(ks2rwm), ks2rwmCount: ks2rwm.length,
       avgKS2Read: avg(ks2read), avgKS2Math: avg(ks2math),
       totalPupils: pupils.reduce((x, y) => x + y, 0), avgPupils: avg(pupils),
-      uniqueLAs: Object.keys(laCounts).length, uniqueTrusts: Object.keys(trustCounts).length,
+      uniqueLAs: new Set(a.map(s => s.la).filter(Boolean)).size,
+      uniqueTrusts: new Set(a.map(s => s.trust).filter(Boolean)).size,
     };
   }, [filtered]);
 
-  // ─── Handlers ───────────────────────────────────
   const handleSearch = useCallback((q) => {
     const filters = parseSearchQuery(q);
     setActiveFilters(filters); setSearchQuery(q); setShowLanding(false); setSelectedSchool(null); setHoveredSchool(null);
@@ -164,17 +150,13 @@ const App = () => {
   }, []);
 
   const handleMapClick = useCallback((event) => {
-    // Use queryRenderedFeatures for reliable click detection
     if (!mapRef.current) return;
     const map = mapRef.current.getMap();
     const features = map.queryRenderedFeatures(event.point, { layers: ['school-dots'] });
     if (features && features.length > 0) {
       const urn = String(features[0].properties.urn);
       const school = schoolsByUrn[urn];
-      if (school) {
-        setSelectedSchool(school);
-        setHoveredSchool(null);
-      }
+      if (school) { setSelectedSchool(school); setHoveredSchool(null); }
     }
   }, []);
 
@@ -185,36 +167,16 @@ const App = () => {
     if (features && features.length > 0) {
       const urn = String(features[0].properties.urn);
       const school = schoolsByUrn[urn];
-      if (school) {
-        setHoveredSchool(school);
-        setHoverCoords({ lng: school.longitude, lat: school.latitude });
-        map.getCanvas().style.cursor = 'pointer';
-        return;
-      }
+      if (school) { setHoveredSchool(school); setHoverCoords({ lng: school.longitude, lat: school.latitude }); map.getCanvas().style.cursor = 'pointer'; return; }
     }
-    setHoveredSchool(null);
-    setHoverCoords(null);
+    setHoveredSchool(null); setHoverCoords(null);
     map.getCanvas().style.cursor = '';
   }, []);
 
-  const handleMouseLeave = useCallback(() => {
-    setHoveredSchool(null); setHoverCoords(null);
-  }, []);
-
-  const handleAddCompare = useCallback((school) => {
-    setCompareList(prev => { if (prev.find(s => s.urn === school.urn)) return prev; if (prev.length >= 3) return [...prev.slice(1), school]; return [...prev, school]; });
-    setSelectedSchool(null);
-  }, []);
-
-  const handleGoHome = useCallback(() => {
-    setShowLanding(true); setSearchQuery(''); setActiveFilters(null); setSelectedSchool(null);
-    setCompareList([]); setShowCompare(false); setShowStats(false); setHoveredSchool(null); setHoverCoords(null);
-    mapRef.current?.flyTo({ center: [-1.5, 52.8], zoom: 6, duration: 800 });
-  }, []);
-
-  const cycleMapStyle = useCallback(() => {
-    setMapStyle(p => p === 'light' ? 'dark' : p === 'dark' ? 'satellite' : 'light');
-  }, []);
+  const handleMouseLeave = useCallback(() => { setHoveredSchool(null); setHoverCoords(null); }, []);
+  const handleAddCompare = useCallback((school) => { setCompareList(prev => { if (prev.find(s => s.urn === school.urn)) return prev; if (prev.length >= 3) return [...prev.slice(1), school]; return [...prev, school]; }); setSelectedSchool(null); }, []);
+  const handleGoHome = useCallback(() => { setShowLanding(true); setSearchQuery(''); setActiveFilters(null); setSelectedSchool(null); setCompareList([]); setShowCompare(false); setShowStats(false); setHoveredSchool(null); setHoverCoords(null); mapRef.current?.flyTo({ center: [-1.5, 52.8], zoom: 6, duration: 800 }); }, []);
+  const cycleMapStyle = useCallback(() => { setMapStyle(p => p === 'light' ? 'dark' : p === 'dark' ? 'satellite' : 'light'); }, []);
 
   const ofstedColors = { Outstanding: '#0d7a42', Good: '#1d5a9e', 'Requires improvement': '#e8920e', Inadequate: '#cc3333' };
   const ofstedOrder = ['Outstanding', 'Good', 'Requires improvement', 'Inadequate'];
@@ -227,43 +189,27 @@ const App = () => {
         <Source id="schools" type="geojson" data={geojson}>
           <Layer id="school-dots" type="circle" paint={{
             'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 1.5, 8, 3, 10, 5, 14, 8],
-            'circle-color': ['get', 'color'],
-            'circle-opacity': 0.85,
+            'circle-color': ['get', 'color'], 'circle-opacity': 0.85,
             'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 0, 10, 0.5, 14, 1],
             'circle-stroke-color': 'rgba(255,255,255,0.6)',
           }} />
         </Source>
-
-        {/* Rich hover popup with full stats */}
         {hoveredSchool && hoverCoords && !selectedSchool && (
-          <Popup longitude={hoverCoords.lng} latitude={hoverCoords.lat}
-            closeButton={false} closeOnClick={false} anchor="bottom" offset={12}
-            style={{ zIndex: 10 }}>
+          <Popup longitude={hoverCoords.lng} latitude={hoverCoords.lat} closeButton={false} closeOnClick={false} anchor="bottom" offset={12} style={{ zIndex: 10 }}>
             <HoverCard school={hoveredSchool} />
           </Popup>
         )}
       </Map>
 
       {showLanding && <LandingScreen onSearch={handleSearch} onExplore={() => setShowLanding(false)} schoolCount={schoolsData.length} />}
-
-      {!showLanding && <SearchBar schools={schoolsData} query={searchQuery} onQueryChange={setSearchQuery}
-        onSearch={handleSearch} resultCount={activeFilters ? filtered.length : null}
-        activeFilters={activeFilters} onClearFilters={handleClearFilters} />}
-
-      {selectedSchool && <SchoolProfile school={selectedSchool} allSchools={schoolsData}
-        onClose={() => setSelectedSchool(null)} onCompare={handleAddCompare} />}
-
-      {!showLanding && !showCompare && <ComparisonTray schools={compareList}
-        onRemove={(urn) => setCompareList(prev => prev.filter(s => s.urn !== urn))}
-        onCompare={() => setShowCompare(true)} />}
-
-      {showCompare && <ComparePanel schools={compareList} allSchools={schoolsData}
-        onRemove={(urn) => { setCompareList(prev => { const n = prev.filter(s => s.urn !== urn); if (n.length < 2) setShowCompare(false); return n; }); }}
-        onClose={() => setShowCompare(false)} />}
+      {!showLanding && <SearchBar schools={schoolsData} query={searchQuery} onQueryChange={setSearchQuery} onSearch={handleSearch} resultCount={activeFilters ? filtered.length : null} activeFilters={activeFilters} onClearFilters={handleClearFilters} />}
+      {selectedSchool && <SchoolProfile school={selectedSchool} allSchools={schoolsData} onClose={() => setSelectedSchool(null)} onCompare={handleAddCompare} />}
+      {!showLanding && !showCompare && <ComparisonTray schools={compareList} onRemove={(urn) => setCompareList(prev => prev.filter(s => s.urn !== urn))} onCompare={() => setShowCompare(true)} />}
+      {showCompare && <ComparePanel schools={compareList} allSchools={schoolsData} onRemove={(urn) => { setCompareList(prev => { const n = prev.filter(s => s.urn !== urn); if (n.length < 2) setShowCompare(false); return n; }); }} onClose={() => setShowCompare(false)} />}
 
       {!showLanding && (
         <button className="stats-toggle" onClick={() => setShowStats(v => !v)}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="18" y="3" width="4" height="18" rx="1"/><rect x="10" y="8" width="4" height="13" rx="1"/><rect x="2" y="13" width="4" height="8" rx="1"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="18" y="3" width="4" height="18" rx="1" /><rect x="10" y="8" width="4" height="13" rx="1" /><rect x="2" y="13" width="4" height="8" rx="1" /></svg>
           {showStats ? 'Hide stats' : 'Stats'}
         </button>
       )}
@@ -285,7 +231,7 @@ const App = () => {
               </div>
             ))}
             <div className="stat-divider" />
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ofsted Ratings</div>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ofsted</div>
             {ofstedOrder.map(o => stats.ofstedCounts[o] ? (
               <div key={o} className="stat-bar-row">
                 <div className="stat-bar-label"><span>{o}</span><span>{stats.ofstedCounts[o].toLocaleString()} ({Math.round(stats.ofstedCounts[o] / stats.ofstedTotal * 100)}%)</span></div>
@@ -294,24 +240,24 @@ const App = () => {
             ) : null)}
             {stats.a8Count > 0 && (<>
               <div className="stat-divider" />
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>KS4 ({stats.a8Count.toLocaleString()} schools)</div>
-              <div className="stat-row"><span className="stat-label">Avg Attainment 8</span><span className="stat-value">{stats.avgA8?.toFixed(1)}</span></div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>KS4 ({stats.a8Count.toLocaleString()})</div>
+              <div className="stat-row"><span className="stat-label">Avg A8</span><span className="stat-value">{stats.avgA8?.toFixed(1)}</span></div>
               <div className="stat-row"><span className="stat-label">Median A8</span><span className="stat-value">{stats.medA8?.toFixed(1)}</span></div>
               {stats.p8Count > 0 && <>
-                <div className="stat-row"><span className="stat-label">Avg Progress 8</span><span className="stat-value">{(stats.avgP8 > 0 ? '+' : '') + stats.avgP8?.toFixed(2)}</span></div>
-                <div className="stat-row"><span className="stat-label">Median P8</span><span className="stat-value">{(stats.medP8 > 0 ? '+' : '') + stats.medP8?.toFixed(2)}</span></div>
+                <div className="stat-row"><span className="stat-label">Avg P8 (2024)</span><span className="stat-value">{(stats.avgP8 > 0 ? '+' : '') + stats.avgP8?.toFixed(2)}</span></div>
+                <div className="stat-row"><span className="stat-label">Median P8 (2024)</span><span className="stat-value">{(stats.medP8 > 0 ? '+' : '') + stats.medP8?.toFixed(2)}</span></div>
               </>}
             </>)}
             {stats.ks2rwmCount > 0 && (<>
               <div className="stat-divider" />
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>KS2 ({stats.ks2rwmCount.toLocaleString()} schools)</div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>KS2 ({stats.ks2rwmCount.toLocaleString()})</div>
               <div className="stat-row"><span className="stat-label">Avg RWM Expected</span><span className="stat-value">{stats.avgKS2RWM?.toFixed(0)}%</span></div>
               {stats.avgKS2Read != null && <div className="stat-row"><span className="stat-label">Avg Reading</span><span className="stat-value">{stats.avgKS2Read?.toFixed(0)}</span></div>}
-              {stats.avgKS2Math != null && <div className="stat-row"><span className="stat-label">Avg Maths</span><span className="stat-value">{stats.avgKS2Math?.toFixed(0)}</span></div>}
+              {stats.avgKS2Math != null && <div className="stat-row"><span className="stat-label">Avg Maths</span><span className="stat-value">{stats.avgKS2Math?.toFixed(0)}%</span></div>}
             </>)}
             {stats.avgFSM != null && (<>
               <div className="stat-divider" />
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Disadvantage</div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Context</div>
               <div className="stat-row"><span className="stat-label">Avg FSM %</span><span className="stat-value">{stats.avgFSM?.toFixed(1)}%</span></div>
               <div className="stat-row"><span className="stat-label">Median FSM %</span><span className="stat-value">{stats.medFSM?.toFixed(1)}%</span></div>
               <div className="stat-row"><span className="stat-label">Avg School Size</span><span className="stat-value">{stats.avgPupils ? Math.round(stats.avgPupils).toLocaleString() : '—'}</span></div>
@@ -328,10 +274,10 @@ const App = () => {
             ))}
           </div>
           <button className="map-ctrl-btn" onClick={cycleMapStyle} title="Change map style">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" /><line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" /></svg>
           </button>
           <button className="map-ctrl-btn map-home-btn" onClick={handleGoHome} title="Return to home">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
           </button>
         </div>
       )}
