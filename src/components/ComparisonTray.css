@@ -1,98 +1,37 @@
-/* ============================================
-   Comparison Tray — Mobile friendly
-   ============================================ */
-
-.comparison-tray {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 500;
-  padding: 0 var(--space-sm) var(--space-sm);
-  pointer-events: none;
-  animation: fadeInUp 0.25s var(--ease-out);
+.ct {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 250;
+  background: var(--white); border-top: 1px solid var(--slate-200);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+  animation: slideSheet 0.2s var(--ease);
 }
-
 .ct-inner {
-  max-width: 640px;
-  margin: 0 auto;
-  background: var(--govuk-black);
-  padding: var(--space-sm) var(--space-md);
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  box-shadow: var(--shadow-xl);
-  pointer-events: all;
+  max-width: 800px; margin: 0 auto; padding: 10px 16px;
+  display: flex; align-items: center; gap: 12px;
 }
-
-.ct-schools {
-  display: flex;
-  gap: var(--space-sm);
-  flex: 1;
-  overflow-x: auto;
-  min-width: 0;
-  -webkit-overflow-scrolling: touch;
+.ct-chips { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
+.ct-chip {
+  display: flex; align-items: center; gap: 4px; padding: 5px 10px;
+  background: var(--blue-50); border: 1px solid var(--blue-100);
+  border-radius: 6px; font-size: 0.78rem; font-weight: 500; color: var(--blue-700);
 }
-
-.ct-school {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: rgba(255,255,255,0.1);
-  flex-shrink: 0;
-  animation: fadeInUp 0.15s var(--ease-out) both;
+.ct-chip-x {
+  background: none; border: none; font-size: 10px; color: var(--blue-400);
+  cursor: pointer; padding: 0 2px;
 }
-
-.ct-name {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: rgba(255,255,255,0.85);
-  white-space: nowrap;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.ct-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ct-count { font-size: 0.75rem; color: var(--slate-500); font-weight: 500; }
+.ct-btn {
+  padding: 6px 14px; border-radius: 6px; font-family: var(--font);
+  font-size: 0.78rem; font-weight: 600; cursor: pointer; border: none;
+  transition: all var(--fast);
 }
-
-.ct-remove {
-  background: transparent;
-  border: none;
-  color: rgba(255,255,255,0.4);
-  font-size: 10px;
-  cursor: pointer;
-  padding: 0;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.ct-remove:hover { color: white; }
-
-.ct-compare-btn {
-  flex-shrink: 0;
-  padding: 10px 18px;
-  background: var(--govuk-green);
-  color: var(--color-white);
-  border: none;
-  font-family: var(--font-body);
-  font-weight: 700;
-  font-size: 0.82rem;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background var(--duration-fast);
-}
-.ct-compare-btn:hover:not(:disabled) { background: #005a30; }
-.ct-compare-btn:disabled { opacity: 0.4; cursor: default; }
+.ct-btn-compare { background: var(--blue-600); color: white; }
+.ct-btn-compare:hover { background: var(--blue-500); }
+.ct-btn-compare:disabled { opacity: 0.35; cursor: default; }
+.ct-btn-clear { background: transparent; color: var(--slate-500); }
+.ct-btn-clear:hover { color: var(--slate-700); }
 
 @media (max-width: 640px) {
-  .ct-inner {
-    flex-direction: column;
-    gap: var(--space-sm);
-    padding: var(--space-sm);
-  }
-
-  .ct-schools { width: 100%; }
-
-  .ct-compare-btn { width: 100%; text-align: center; }
+  .ct-inner { padding: 8px 12px; flex-wrap: wrap; }
+  .ct-chip-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }

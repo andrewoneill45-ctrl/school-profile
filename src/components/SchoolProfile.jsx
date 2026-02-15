@@ -1,376 +1,155 @@
 import React, { useMemo } from 'react';
-import { getOfstedColor, getOfstedLabel, formatNumber, formatPercent, formatScore, contextualiseMetric } from '../utils/dataHelpers';
 import { exportSchoolPDF } from '../utils/pdfReport';
 import './SchoolProfile.css';
 
 const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
-  if (!school) return null;
+  const s = school;
+  if (!s) return null;
 
-  const ofstedColor = getOfstedColor(school.ofsted);
-  const ofstedLabel = getOfstedLabel(school.ofsted);
-  const isSecondary = school.phase === 'Secondary' || school.phase === 'All-through';
-  const isPrimary = school.phase === 'Primary';
+  const isSecondary = s.phase === 'Secondary' || s.phase === 'All-through';
+  const isPrimary = s.phase === 'Primary';
 
-  // Contextualise metrics against national data
   const context = useMemo(() => {
     if (!allSchools) return {};
-
-    // Filter to same phase for fair comparison
-    const samePhase = allSchools.filter(s => s.phase === school.phase);
-
-    return {
-      attainment8: school.attainment8 != null
-        ? contextualiseMetric(school.attainment8, samePhase.map(s => s.attainment8).filter(v => v != null), 'Attainment 8')
-        : null,
-      progress8: school.progress8 != null
-        ? contextualiseMetric(school.progress8, samePhase.map(s => s.progress8).filter(v => v != null), 'Progress 8')
-        : null,
-      basics4: school.basics_94 != null
-        ? contextualiseMetric(school.basics_94, samePhase.map(s => s.basics_94).filter(v => v != null), '4+ Basics')
-        : null,
-      basics5: school.basics_95 != null
-        ? contextualiseMetric(school.basics_95, samePhase.map(s => s.basics_95).filter(v => v != null), '5+ Basics')
-        : null,
-      ks2rwm: school.ks2_rwm_exp != null
-        ? contextualiseMetric(school.ks2_rwm_exp, samePhase.map(s => s.ks2_rwm_exp).filter(v => v != null), 'KS2 RWM')
-        : null,
-      pupils: school.pupils != null
-        ? contextualiseMetric(school.pupils, samePhase.map(s => s.pupils).filter(v => v != null), 'Pupils')
-        : null,
+    const same = allSchools.filter(x => x.phase === s.phase);
+    const la = same.filter(x => x.la === s.la);
+    const calcPct = (val, arr) => {
+      if (val == null || !arr.length) return null;
+      const sorted = [...arr].sort((a, b) => a - b);
+      return Math.round((sorted.filter(v => v < val).length / sorted.length) * 100);
     };
-  }, [school, allSchools]);
-
-  // Calculate LA average for comparison
-  const laAverage = useMemo(() => {
-    if (!allSchools || !school.la) return {};
-    const laSchools = allSchools.filter(s => s.la === school.la && s.phase === school.phase);
-    const a8Vals = laSchools.map(s => s.attainment8).filter(v => v != null);
-    const ks2Vals = laSchools.map(s => s.ks2_rwm_exp).filter(v => v != null);
+    const avg = arr => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length) : null;
     return {
-      attainment8: a8Vals.length ? (a8Vals.reduce((a, b) => a + b, 0) / a8Vals.length) : null,
-      ks2_rwm_exp: ks2Vals.length ? (ks2Vals.reduce((a, b) => a + b, 0) / ks2Vals.length) : null,
-      schoolCount: laSchools.length,
+      a8Pct: calcPct(s.attainment8, same.map(x => x.attainment8).filter(Boolean)),
+      p8Pct: calcPct(s.progress8, same.map(x => x.progress8).filter(v => v != null)),
+      natA8Avg: avg(same.map(x => x.attainment8).filter(Boolean)),
+      laA8Avg: avg(la.map(x => x.attainment8).filter(Boolean)),
+      laCount: la.length,
+      trustSchools: s.trust ? allSchools.filter(x => x.trust === s.trust).length : 0,
     };
-  }, [school, allSchools]);
+  }, [s, allSchools]);
+
+  const pctLabel = (p) => {
+    if (p == null) return '';
+    if (p >= 90) return 'Top 10%';
+    if (p >= 75) return 'Top quartile';
+    if (p >= 50) return 'Above average';
+    if (p >= 25) return 'Below average';
+    return 'Lowest quartile';
+  };
+
+  const pctColor = (p) => {
+    if (p == null) return 'var(--slate-400)';
+    if (p >= 75) return 'var(--green-600)';
+    if (p >= 50) return 'var(--blue-600)';
+    if (p >= 25) return 'var(--amber-500)';
+    return 'var(--red-500)';
+  };
+
+  const ofstedColor = (o) => {
+    switch (o) {
+      case 'Outstanding': return 'var(--ofsted-outstanding)';
+      case 'Good': return 'var(--ofsted-good)';
+      case 'Requires improvement': return 'var(--ofsted-ri)';
+      case 'Inadequate': return 'var(--ofsted-inadequate)';
+      default: return 'var(--ofsted-none)';
+    }
+  };
+
+  const occupancy = s.capacity ? Math.round((s.pupils / s.capacity) * 100) : null;
 
   return (
-    <div className="profile-overlay" onClick={onClose}>
-      <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="profile-close" onClick={onClose} aria-label="Close">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
+    <div className="sp-overlay" onClick={onClose}>
+      <div className="sp-panel" onClick={e => e.stopPropagation()}>
+        <button className="sp-close" onClick={onClose}>✕</button>
 
-        {/* ─── Header ─────────────────────────── */}
-        <div className="profile-head">
-          <div className="ph-content">
-            <div className="ph-badges">
-              <span className="ph-phase">{school.phase}</span>
-              <span className="ph-type">{school.type}</span>
-            </div>
-            <h1 className="ph-name">{school.name}</h1>
-            <p className="ph-location">
-              {school.town && `${school.town}, `}{school.la} · {school.postcode}
-              {school.region && ` · ${school.region}`}
-            </p>
-          </div>
-          <div className="ph-ofsted">
-            <div className="ph-ofsted-badge" style={{ background: ofstedColor }}>
-              {ofstedLabel}
-            </div>
-            <span className="ph-ofsted-label">Ofsted</span>
-          </div>
+        <div className="sp-header" style={{ borderLeftColor: isSecondary ? 'var(--phase-secondary)' : isPrimary ? 'var(--phase-primary)' : 'var(--phase-special)' }}>
+          <div className="sp-phase-badge">{s.phase}</div>
+          <h2 className="sp-name">{s.name}</h2>
+          <p className="sp-sub">{s.la} · {s.town}{s.postcode ? ` · ${s.postcode}` : ''}</p>
+          {s.ofsted && s.ofsted !== 'Not inspected' && (
+            <span className="sp-ofsted" style={{ background: ofstedColor(s.ofsted) }}>{s.ofsted}</span>
+          )}
         </div>
 
-        <div className="profile-body">
-          {/* ─── Key facts ────────────────────── */}
-          <section className="profile-section">
-            <h2 className="ps-title">At a glance</h2>
-            <div className="fact-grid">
-              <div className="fact-card">
-                <span className="fc-value">{formatNumber(school.pupils)}</span>
-                <span className="fc-label">Pupils on roll</span>
-                {context.pupils && context.pupils.percentile != null && (
-                  <span className="fc-context" style={{ color: context.pupils.color }}>
-                    {context.pupils.label} for {school.phase?.toLowerCase()} schools
-                  </span>
-                )}
-              </div>
-              {school.capacity && (
-                <div className="fact-card">
-                  <span className="fc-value">{formatNumber(school.capacity)}</span>
-                  <span className="fc-label">Capacity</span>
-                  {school.pupils && school.capacity && (
-                    <span className="fc-context">
-                      {Math.round((school.pupils / school.capacity) * 100)}% full
-                    </span>
-                  )}
-                </div>
-              )}
-              {school.fsm_pct != null && (
-                <div className="fact-card">
-                  <span className="fc-value">{school.fsm_pct}%</span>
-                  <span className="fc-label">Free school meals</span>
-                </div>
-              )}
-              <div className="fact-card">
-                <span className="fc-value">{school.gender || '—'}</span>
-                <span className="fc-label">Gender</span>
-              </div>
-              {school.religiousCharacter && school.religiousCharacter !== 'None' && school.religiousCharacter !== 'Does not apply' && (
-                <div className="fact-card">
-                  <span className="fc-value fc-value-sm">{school.religiousCharacter}</span>
-                  <span className="fc-label">Faith</span>
-                </div>
-              )}
-              {school.trust && (
-                <div className="fact-card fact-card-wide">
-                  <span className="fc-value fc-value-sm">{school.trust}</span>
-                  <span className="fc-label">Academy Trust</span>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* ─── Performance ──────────────────── */}
-          {isSecondary && (school.attainment8 != null || school.basics_94 != null) && (
-            <section className="profile-section">
-              <h2 className="ps-title">Performance — Key Stage 4</h2>
-              <div className="metric-grid">
-                {school.attainment8 != null && (
-                  <MetricCard
-                    label="Attainment 8"
-                    value={formatScore(school.attainment8)}
-                    max={80}
-                    current={school.attainment8}
-                    context={context.attainment8}
-                    laAvg={laAverage.attainment8}
-                    laName={school.la}
-                    color="#0c7c8a"
-                  />
-                )}
-                {school.basics_94 != null && (
-                  <MetricCard
-                    label="English & Maths 4+"
-                    value={`${school.basics_94}%`}
-                    max={100}
-                    current={school.basics_94}
-                    context={context.basics4}
-                    color="#1a8a5c"
-                    suffix="%"
-                  />
-                )}
-                {school.basics_95 != null && (
-                  <MetricCard
-                    label="English & Maths 5+"
-                    value={`${school.basics_95}%`}
-                    max={100}
-                    current={school.basics_95}
-                    context={context.basics5}
-                    color="#c53030"
-                    suffix="%"
-                  />
-                )}
-                {school.progress8 != null && (
-                  <div className="metric-card">
-                    <div className="mc-header">
-                      <span className="mc-label">Progress 8</span>
-                      {context.progress8 && (
-                        <span className="mc-context" style={{ color: context.progress8.color }}>
-                          {context.progress8.label}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mc-p8-value" style={{ color: school.progress8 >= 0 ? 'var(--ofsted-outstanding)' : 'var(--ofsted-inadequate)' }}>
-                      {school.progress8 > 0 ? '+' : ''}{formatScore(school.progress8, 2)}
-                    </div>
-                    <div className="mc-p8-bar">
-                      <div className="mc-p8-track">
-                        <div className="mc-p8-zero" />
-                        <div
-                          className="mc-p8-fill"
-                          style={{
-                            left: school.progress8 >= 0 ? '50%' : `${50 + (school.progress8 / 2) * 50}%`,
-                            width: `${Math.abs(school.progress8 / 2) * 50}%`,
-                            background: school.progress8 >= 0 ? 'var(--ofsted-outstanding)' : 'var(--ofsted-inadequate)',
-                          }}
-                        />
-                      </div>
-                      <div className="mc-p8-labels">
-                        <span>-1.0</span>
-                        <span>0</span>
-                        <span>+1.0</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              {laAverage.attainment8 != null && (
-                <div className="la-comparison">
-                  <span className="la-comp-label">
-                    {school.la} average ({laAverage.schoolCount} {school.phase?.toLowerCase()} schools):
-                  </span>
-                  <span className="la-comp-value">A8 = {formatScore(laAverage.attainment8)}</span>
-                </div>
-              )}
-            </section>
+        <div className="sp-facts">
+          {s.pupils && <Fact label="Pupils" value={s.pupils.toLocaleString()} sub={occupancy ? `${occupancy}% full` : null} />}
+          {s.type && <Fact label="Type" value={s.type} />}
+          {s.gender && <Fact label="Gender" value={s.gender} />}
+          {s.fsm_pct != null && <Fact label="FSM" value={`${s.fsm_pct}%`} sub={s.fsm_pct > 30 ? 'Above avg' : s.fsm_pct < 15 ? 'Below avg' : 'Average'} />}
+          {s.religiousCharacter && s.religiousCharacter !== 'None' && s.religiousCharacter !== 'Does not apply' && (
+            <Fact label="Faith" value={s.religiousCharacter} />
           )}
-
-          {isPrimary && (school.ks2_rwm_exp != null || school.ks2_read_avg != null) && (
-            <section className="profile-section">
-              <h2 className="ps-title">Performance — Key Stage 2</h2>
-              <div className="metric-grid">
-                {school.ks2_rwm_exp != null && (
-                  <MetricCard
-                    label="RWM Expected Standard"
-                    value={`${school.ks2_rwm_exp}%`}
-                    max={100}
-                    current={school.ks2_rwm_exp}
-                    context={context.ks2rwm}
-                    laAvg={laAverage.ks2_rwm_exp}
-                    laName={school.la}
-                    color="#1d70b8"
-                    suffix="%"
-                  />
-                )}
-                {school.ks2_rwm_high != null && (
-                  <MetricCard
-                    label="RWM Higher Standard"
-                    value={`${school.ks2_rwm_high}%`}
-                    max={100}
-                    current={school.ks2_rwm_high}
-                    color="#e8a817"
-                    suffix="%"
-                  />
-                )}
-                {school.ks2_read_avg != null && (
-                  <MetricCard
-                    label="Reading Average"
-                    value={formatScore(school.ks2_read_avg)}
-                    max={120}
-                    min={80}
-                    current={school.ks2_read_avg}
-                    color="#6c5ce7"
-                  />
-                )}
-                {school.ks2_math_avg != null && (
-                  <MetricCard
-                    label="Maths Average"
-                    value={formatScore(school.ks2_math_avg)}
-                    max={120}
-                    min={80}
-                    current={school.ks2_math_avg}
-                    color="#e8a817"
-                  />
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* ─── Details grid ─────────────────── */}
-          <section className="profile-section">
-            <h2 className="ps-title">Details</h2>
-            <div className="detail-grid">
-              <DetailRow label="URN" value={school.urn} />
-              <DetailRow label="Type" value={school.type} />
-              <DetailRow label="Local authority" value={school.la} />
-              <DetailRow label="Region" value={school.region} />
-              <DetailRow label="Gender" value={school.gender} />
-              <DetailRow label="Religious character" value={school.religiousCharacter} />
-              {school.trust && <DetailRow label="Academy trust" value={school.trust} />}
-            </div>
-          </section>
+          {s.trust && <Fact label="Trust" value={s.trust} sub={context.trustSchools > 1 ? `${context.trustSchools} schools` : null} />}
         </div>
 
-        {/* ─── Actions ────────────────────────── */}
-        <div className="profile-actions">
-          <button className="pa-btn pa-pdf" onClick={() => exportSchoolPDF(school, allSchools)}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="12" y1="18" x2="12" y2="12" />
-              <polyline points="9 15 12 18 15 15" />
-            </svg>
-            Export PDF report
+        {isSecondary && (s.attainment8 != null || s.progress8 != null) && (
+          <div className="sp-section">
+            <h3 className="sp-section-title">Key Stage 4</h3>
+            <div className="sp-metrics">
+              {s.attainment8 != null && (
+                <Metric label="Attainment 8" value={s.attainment8.toFixed(1)} pct={context.a8Pct} pctLabel={pctLabel(context.a8Pct)} color={pctColor(context.a8Pct)} max={80}
+                  sub={context.natA8Avg ? `National avg: ${context.natA8Avg.toFixed(1)}` : null}
+                  sub2={context.laA8Avg ? `${s.la} avg: ${context.laA8Avg.toFixed(1)}` : null} />
+              )}
+              {s.progress8 != null && (
+                <Metric label="Progress 8" value={(s.progress8 > 0 ? '+' : '') + s.progress8.toFixed(2)} pct={context.p8Pct} pctLabel={pctLabel(context.p8Pct)} color={pctColor(context.p8Pct)} />
+              )}
+              {s.basics_94 != null && <Metric label="Eng & Maths 4+" value={`${s.basics_94}%`} max={100} color="var(--blue-600)" />}
+              {s.basics_95 != null && <Metric label="Eng & Maths 5+" value={`${s.basics_95}%`} max={100} color="var(--blue-600)" />}
+            </div>
+          </div>
+        )}
+
+        {isPrimary && (s.ks2_rwm_exp != null || s.ks2_read_avg != null) && (
+          <div className="sp-section">
+            <h3 className="sp-section-title">Key Stage 2</h3>
+            <div className="sp-metrics">
+              {s.ks2_rwm_exp != null && <Metric label="RWM Expected" value={`${s.ks2_rwm_exp}%`} max={100} color="var(--blue-600)" />}
+              {s.ks2_rwm_high != null && <Metric label="RWM Higher" value={`${s.ks2_rwm_high}%`} max={100} color="var(--green-600)" />}
+              {s.ks2_read_avg != null && <Metric label="Reading" value={s.ks2_read_avg.toFixed(0)} sub="Expected: 100" color={s.ks2_read_avg >= 100 ? 'var(--green-600)' : 'var(--amber-500)'} />}
+              {s.ks2_math_avg != null && <Metric label="Maths" value={s.ks2_math_avg.toFixed(0)} sub="Expected: 100" color={s.ks2_math_avg >= 100 ? 'var(--green-600)' : 'var(--amber-500)'} />}
+            </div>
+          </div>
+        )}
+
+        <div className="sp-actions">
+          <button className="sp-btn sp-btn-primary" onClick={() => exportSchoolPDF(s, allSchools)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
+            Export PDF
           </button>
           {onCompare && (
-            <button className="pa-btn pa-compare" onClick={() => onCompare(school)}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-              </svg>
-              Add to comparison
+            <button className="sp-btn sp-btn-secondary" onClick={() => onCompare(s)}>
+              + Compare
             </button>
           )}
-          <button className="pa-btn pa-secondary" onClick={onClose}>
-            Close
-          </button>
         </div>
       </div>
     </div>
   );
 };
 
-// ─── Metric Card sub-component ──────────────────────────────
-const MetricCard = ({ label, value, max, min = 0, current, context, laAvg, laName, color, suffix }) => {
-  const range = max - min;
-  const pct = Math.max(0, Math.min(100, ((current - min) / range) * 100));
-  const laAvgPct = laAvg != null ? Math.max(0, Math.min(100, ((laAvg - min) / range) * 100)) : null;
+const Fact = ({ label, value, sub }) => (
+  <div className="sp-fact">
+    <span className="sp-fact-label">{label}</span>
+    <span className="sp-fact-value">{value}</span>
+    {sub && <span className="sp-fact-sub">{sub}</span>}
+  </div>
+);
 
-  return (
-    <div className="metric-card">
-      <div className="mc-header">
-        <span className="mc-label">{label}</span>
-        {context && context.percentile != null && (
-          <span className="mc-context" style={{ color: context.color }}>
-            {context.label}
-          </span>
-        )}
+const Metric = ({ label, value, pct, pctLabel, color, max, sub, sub2 }) => (
+  <div className="sp-metric">
+    <span className="sp-metric-label">{label}</span>
+    <span className="sp-metric-value" style={{ color: color || 'var(--slate-900)' }}>{value}</span>
+    {pct != null && <span className="sp-metric-pct" style={{ color }}>{pctLabel} ({pct}th percentile)</span>}
+    {max && (
+      <div className="sp-metric-bar">
+        <div className="sp-metric-fill" style={{ width: `${(parseFloat(value) / max) * 100}%`, background: color || 'var(--blue-600)' }} />
       </div>
-      <div className="mc-value" style={{ color }}>{value}</div>
-      <div className="mc-bar">
-        <div className="mc-track">
-          <div
-            className="mc-fill"
-            style={{
-              width: `${pct}%`,
-              background: `linear-gradient(90deg, ${color}44, ${color})`,
-              animation: 'barFill 0.8s var(--ease-out) both',
-            }}
-          />
-          {laAvgPct != null && (
-            <div
-              className="mc-la-marker"
-              style={{ left: `${laAvgPct}%` }}
-              title={`${laName} average: ${formatScore(laAvg)}`}
-            >
-              <div className="mc-la-line" />
-              <div className="mc-la-tooltip">{laName} avg</div>
-            </div>
-          )}
-        </div>
-        <div className="mc-scale">
-          <span>{min}</span>
-          <span>{max}</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── Detail Row sub-component ──────────────────────────────
-const DetailRow = ({ label, value }) => {
-  if (!value || value === 'null' || value === 'Not recorded') return null;
-  return (
-    <div className="detail-row">
-      <span className="dr-label">{label}</span>
-      <span className="dr-value">{value}</span>
-    </div>
-  );
-};
+    )}
+    {sub && <span className="sp-metric-sub">{sub}</span>}
+    {sub2 && <span className="sp-metric-sub">{sub2}</span>}
+  </div>
+);
 
 export default SchoolProfile;
