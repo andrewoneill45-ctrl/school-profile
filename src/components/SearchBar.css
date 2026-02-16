@@ -11,9 +11,9 @@
   transition: all var(--fast);
 }
 .sb-focused { border-color: var(--blue-400); box-shadow: 0 4px 36px rgba(0,0,0,0.18); }
-.sb-icon { position: absolute; left: 26px; color: var(--slate-400); pointer-events: none; }
+.sb-icon { position: absolute; left: 28px; color: var(--slate-400); pointer-events: none; }
 .sb-input {
-  flex: 1; padding: 26px 20px 26px 64px; background: transparent; border: none;
+  flex: 1; padding: 26px 20px 26px 68px; background: transparent; border: none;
   font-family: var(--font); font-size: 1.35rem; color: var(--slate-900); outline: none;
 }
 .sb-input::placeholder { color: var(--slate-400); font-size: 1.2rem; }
