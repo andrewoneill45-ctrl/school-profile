@@ -207,7 +207,7 @@ const App = () => {
       const school = schoolsByUrn[urn];
       if (school) { setSelectedSchool(school); setHoveredSchool(null); }
     }
-  }, []);
+  }, [schoolsByUrn]);
 
   const handleMouseMove = useCallback((event) => {
     if (!mapRef.current) return;
@@ -219,7 +219,7 @@ const App = () => {
       if (school) { setHoveredSchool(school); setHoverPos({ x: event.point.x, y: event.point.y }); map.getCanvas().style.cursor = 'pointer'; return; }
     }
     setHoveredSchool(null); setHoverPos(null); map.getCanvas().style.cursor = '';
-  }, []);
+  }, [schoolsByUrn]);
 
   const handleMouseLeave = useCallback(() => { setHoveredSchool(null); setHoverPos(null); }, []);
   const handleAddCompare = useCallback((school) => { setCompareList(prev => { if (prev.find(s => s.urn === school.urn)) return prev; if (prev.length >= 3) return [...prev.slice(1), school]; return [...prev, school]; }); setSelectedSchool(null); }, []);
