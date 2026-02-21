@@ -9,14 +9,12 @@ function calcDecile(val, allVals) {
   const rank = sorted.filter(v => v < val).length / sorted.length;
   return Math.min(10, Math.max(1, Math.ceil(rank * 10)));
 }
-
 export function decileColor(d) {
   if (d == null) return '#94a3b8';
   if (d >= 8) return '#0d7a42';
   if (d >= 5) return '#e8920e';
   return '#cc3333';
 }
-
 function decileBg(d) {
   if (d == null) return '#f1f5f9';
   if (d >= 8) return '#ecfdf5';
@@ -26,80 +24,125 @@ function decileBg(d) {
 
 /* ─── SVG Radar Chart ──────────────────────────── */
 const RADAR_LABELS = {
-  // Secondary
-  '4+ Eng & Maths': '4+ Eng & Ma',
-  '5+ Eng & Maths': '5+ Eng & Ma',
-  'School Size': 'School Size',
-  'Progress 8 (2024)': 'P8 (2024)',
-  'FSM': 'FSM %',
-  // Primary
-  'RWM Expected': 'RWM Exp',
-  'RWM Higher': 'RWM Higher',
-  'Reading': 'Reading',
-  'Writing': 'Writing',
-  'Maths': 'Maths',
+  '4+ Eng & Maths': '4+ Eng & Ma', '5+ Eng & Maths': '5+ Eng & Ma',
+  'School Size': 'School Size', 'Progress 8 (2024)': 'P8 (2024)', 'FSM': 'FSM %',
+  'RWM Expected': 'RWM Exp', 'RWM Higher': 'RWM Higher',
+  'Reading': 'Reading', 'Writing': 'Writing', 'Maths': 'Maths',
 };
 
-const RadarChart = ({ metrics, size = 320 }) => {
-  const pad = 80; // extra padding for labels
+const RadarChart = ({ metrics, size = 380 }) => {
+  const pad = 90;
   const fullSize = size + pad * 2;
-  const cx = fullSize / 2, cy = fullSize / 2, r = size * 0.30;
+  const cx = fullSize / 2, cy = fullSize / 2, rr = size * 0.30;
   const n = metrics.length;
   if (n < 3) return null;
-
-  const angleStep = (2 * Math.PI) / n;
-  const startAngle = -Math.PI / 2;
-  const getPoint = (i, val) => {
-    const angle = startAngle + i * angleStep;
-    const dist = (val / 10) * r;
-    return { x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) };
+  const step = (2 * Math.PI) / n, start = -Math.PI / 2;
+  const pt = (i, v) => {
+    const a = start + i * step, d = (v / 10) * rr;
+    return { x: cx + d * Math.cos(a), y: cy + d * Math.sin(a) };
   };
-
   const rings = [2, 4, 6, 8, 10];
-  const gridLines = rings.map(ring => {
-    const points = Array.from({ length: n }, (_, i) => getPoint(i, ring));
-    return points.map(p => `${p.x},${p.y}`).join(' ');
-  });
-  const axes = Array.from({ length: n }, (_, i) => getPoint(i, 10));
-  const dataPoints = metrics.map((m, i) => getPoint(i, m.decile || 0));
-  const dataPath = dataPoints.map(p => `${p.x},${p.y}`).join(' ');
-  const labelPoints = metrics.map((m, i) => {
-    const angle = startAngle + i * angleStep;
-    const dist = r + 42;
-    return { x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) };
+  const grid = rings.map(r => Array.from({ length: n }, (_, i) => pt(i, r)).map(p => `${p.x},${p.y}`).join(' '));
+  const data = metrics.map((m, i) => pt(i, m.decile || 0));
+  const poly = data.map(p => `${p.x},${p.y}`).join(' ');
+  const labels = metrics.map((m, i) => {
+    const a = start + i * step, d = rr + 48;
+    return { x: cx + d * Math.cos(a), y: cy + d * Math.sin(a) };
   });
 
   return (
-    <svg width={fullSize} height={fullSize} viewBox={`0 0 ${fullSize} ${fullSize}`} style={{ display: 'block', margin: '0 auto', maxWidth: '100%' }}>
-      {gridLines.map((pts, i) => (
-        <polygon key={i} points={pts} fill="none" stroke={i === 4 ? '#cbd5e1' : '#e2e8f0'} strokeWidth={i === 4 ? 1.2 : 0.5} />
-      ))}
-      {axes.map((p, i) => (
-        <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#e2e8f0" strokeWidth={0.5} />
-      ))}
-      {/* Decile ring labels */}
-      {[2, 4, 6, 8, 10].map(ring => {
-        const p = getPoint(0, ring);
-        return <text key={ring} x={p.x + 3} y={p.y - 2} fontSize="7" fill="#cbd5e1" fontFamily="'Source Sans 3', sans-serif">{ring}</text>;
-      })}
-      <polygon points={dataPath} fill="rgba(29,90,158,0.12)" stroke="#1d5a9e" strokeWidth={2.5} strokeLinejoin="round" />
-      {dataPoints.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r={6} fill={decileColor(metrics[i].decile)} stroke="white" strokeWidth={2} />
-      ))}
-      {labelPoints.map((p, i) => {
-        const m = metrics[i];
-        const anchor = p.x < cx - 10 ? 'end' : p.x > cx + 10 ? 'start' : 'middle';
-        const displayLabel = RADAR_LABELS[m.label] || m.label;
+    <svg width="100%" viewBox={`0 0 ${fullSize} ${fullSize}`} style={{ display: 'block', maxWidth: fullSize }}>
+      {grid.map((pts, i) => <polygon key={i} points={pts} fill="none" stroke={i === 4 ? '#cbd5e1' : '#e2e8f0'} strokeWidth={i === 4 ? 1.2 : 0.5} />)}
+      {Array.from({ length: n }, (_, i) => pt(i, 10)).map((p, i) => <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#e2e8f0" strokeWidth={0.5} />)}
+      {[2, 4, 6, 8, 10].map(r => { const p = pt(0, r); return <text key={r} x={p.x + 3} y={p.y - 2} fontSize="8" fill="#cbd5e1" fontFamily="'Source Sans 3',sans-serif">{r}</text>; })}
+      <polygon points={poly} fill="rgba(29,90,158,0.12)" stroke="#1d5a9e" strokeWidth={2.5} strokeLinejoin="round" />
+      {data.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={7} fill={decileColor(metrics[i].decile)} stroke="white" strokeWidth={2.5} />)}
+      {labels.map((p, i) => {
+        const m = metrics[i], anchor = p.x < cx - 10 ? 'end' : p.x > cx + 10 ? 'start' : 'middle';
         return (
           <g key={i}>
-            <text x={p.x} y={p.y - 4} textAnchor={anchor} fontSize="11" fontWeight="700" fill="#334155" fontFamily="'Source Sans 3', sans-serif">{displayLabel}</text>
-            <text x={p.x} y={p.y + 10} textAnchor={anchor} fontSize="12" fontWeight="800" fill={decileColor(m.decile)} fontFamily="'Source Sans 3', sans-serif">
-              {m.value}
-            </text>
+            <text x={p.x} y={p.y - 4} textAnchor={anchor} fontSize="12" fontWeight="700" fill="#334155" fontFamily="'Source Sans 3',sans-serif">{RADAR_LABELS[m.label] || m.label}</text>
+            <text x={p.x} y={p.y + 12} textAnchor={anchor} fontSize="14" fontWeight="800" fill={decileColor(m.decile)} fontFamily="'Source Sans 3',sans-serif">{m.value}</text>
           </g>
         );
       })}
     </svg>
+  );
+};
+
+/* ─── Trend Line Chart ─────────────────────────── */
+const TrendChart = ({ data, metrics, title }) => {
+  if (!data || data.length < 2) return null;
+  const COLORS = ['#1d5a9e', '#b91c4a', '#0d7a42', '#e8920e'];
+  const W = 500, H = 200, PL = 50, PR = 20, PT = 30, PB = 36;
+  const cw = W - PL - PR, ch = H - PT - PB;
+  const years = data.map(d => d.year);
+
+  // Find min/max across all metrics
+  let allVals = [];
+  metrics.forEach(m => data.forEach(d => { if (d[m.key] != null) allVals.push(d[m.key]); }));
+  if (!allVals.length) return null;
+  let mn = Math.min(...allVals), mx = Math.max(...allVals);
+  const range = mx - mn || 1;
+  mn = mn - range * 0.1; mx = mx + range * 0.1;
+
+  const xPos = (i) => PL + (i / (years.length - 1)) * cw;
+  const yPos = (v) => PT + ch - ((v - mn) / (mx - mn)) * ch;
+
+  return (
+    <div className="sp-trend">
+      <h4 className="sp-trend-title">{title}</h4>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
+        {/* Grid lines */}
+        {[0, 0.25, 0.5, 0.75, 1].map(f => {
+          const y = PT + ch * (1 - f), val = mn + (mx - mn) * f;
+          return (
+            <g key={f}>
+              <line x1={PL} y1={y} x2={W - PR} y2={y} stroke="#f1f5f9" strokeWidth={1} />
+              <text x={PL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#94a3b8" fontFamily="'Source Sans 3',sans-serif">
+                {val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}
+              </text>
+            </g>
+          );
+        })}
+        {/* X axis labels */}
+        {years.map((yr, i) => (
+          <text key={i} x={xPos(i)} y={H - 8} textAnchor="middle" fontSize="10" fontWeight="600" fill="#64748b" fontFamily="'Source Sans 3',sans-serif">
+            {yr.replace('20', "'")}
+          </text>
+        ))}
+        {/* Lines & dots */}
+        {metrics.map((m, mi) => {
+          const points = data.map((d, i) => d[m.key] != null ? { x: xPos(i), y: yPos(d[m.key]), v: d[m.key] } : null).filter(Boolean);
+          if (points.length < 2) return null;
+          const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+          return (
+            <g key={m.key}>
+              <path d={path} fill="none" stroke={COLORS[mi]} strokeWidth={2.5} strokeLinejoin="round" />
+              {points.map((p, i) => (
+                <g key={i}>
+                  <circle cx={p.x} cy={p.y} r={4.5} fill={COLORS[mi]} stroke="white" strokeWidth={2} />
+                  <text x={p.x} y={p.y - 9} textAnchor="middle" fontSize="9" fontWeight="700" fill={COLORS[mi]} fontFamily="'Source Sans 3',sans-serif">
+                    {typeof p.v === 'number' ? (p.v % 1 === 0 ? p.v : p.v.toFixed(1)) : p.v}
+                  </text>
+                </g>
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+      <div className="sp-trend-legend">
+        {metrics.map((m, i) => {
+          const hasData = data.some(d => d[m.key] != null);
+          if (!hasData) return null;
+          return (
+            <span key={m.key} className="sp-tl-item">
+              <span className="sp-tl-line" style={{ background: COLORS[i] }} />{m.label}
+            </span>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 
@@ -110,15 +153,15 @@ const DecileInfoPopup = ({ onClose }) => (
       <button className="sp-info-close" onClick={onClose}>✕</button>
       <h3 style={{ margin: '0 0 10px', fontSize: '1rem', color: '#0f172a' }}>Understanding the Performance Profile</h3>
       <p style={{ fontSize: '0.85rem', color: '#475569', lineHeight: 1.6, margin: '0 0 12px' }}>
-        Each metric is ranked against all schools of the same phase nationally and placed into a <strong>decile</strong> (1-10), where 10 is the highest performing.
+        Each metric is ranked against all schools of the same phase nationally and placed into a <strong>decile</strong> (1–10), where 10 is the highest performing.
       </p>
-      <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: 7, background: '#0d7a42', display: 'inline-block' }} /> <span style={{ fontSize: '0.82rem' }}>Top performance (decile 8-10)</span></span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: 7, background: '#e8920e', display: 'inline-block' }} /> <span style={{ fontSize: '0.82rem' }}>Mid-range (decile 5-7)</span></span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: 7, background: '#cc3333', display: 'inline-block' }} /> <span style={{ fontSize: '0.82rem' }}>Below average (decile 1-4)</span></span>
+      <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: 7, background: '#0d7a42', display: 'inline-block' }} /> <span style={{ fontSize: '0.82rem' }}>Top (decile 8–10)</span></span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: 7, background: '#e8920e', display: 'inline-block' }} /> <span style={{ fontSize: '0.82rem' }}>Mid-range (decile 5–7)</span></span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: 7, background: '#cc3333', display: 'inline-block' }} /> <span style={{ fontSize: '0.82rem' }}>Below average (decile 1–4)</span></span>
       </div>
       <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0 }}>
-        The radar chart shows how a school's profile compares nationally. A larger shape indicates stronger overall performance. Data: DfE performance tables 2024/25.
+        The radar chart shows the school's profile compared nationally. A larger shape indicates stronger overall performance. Data: DfE performance tables.
       </p>
     </div>
   </div>
@@ -151,8 +194,6 @@ const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
       readDecile: calcDecile(s.ks2_read_avg, vals(same, 'ks2_read_avg')),
       writDecile: calcDecile(s.ks2_writ_exp, vals(same, 'ks2_writ_exp')),
       matDecile: calcDecile(s.ks2_mat_exp, vals(same, 'ks2_mat_exp')),
-      natA8: avg(vals(same, 'attainment8')),
-      laA8: avg(vals(la, 'attainment8')),
       trustSchools: s.trust ? allSchools.filter(x => x.trust === s.trust).length : 0,
     };
   }, [s, allSchools]);
@@ -179,11 +220,7 @@ const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
     return [];
   }, [s, ctx, isSecondary, isPrimary]);
 
-  const ofstedColor = (o) => {
-    const map = { Outstanding: '#0d7a42', Good: '#1d5a9e', 'Requires improvement': '#e8920e', Inadequate: '#cc3333' };
-    return map[o] || '#94a3b8';
-  };
-
+  const ofstedColor = (o) => ({ Outstanding: '#0d7a42', Good: '#1d5a9e', 'Requires improvement': '#e8920e', Inadequate: '#cc3333' }[o] || '#94a3b8');
   const occupancy = s.capacity ? Math.round((s.pupils / s.capacity) * 100) : null;
 
   return (
@@ -207,11 +244,11 @@ const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
           {s.trust && <Fact label="Trust" value={s.trust} sub={ctx.trustSchools > 1 ? `${ctx.trustSchools} schools` : null} />}
         </div>
 
-        {/* Headlines - colour coded, no D-numbers */}
+        {/* Headlines */}
         {isSecondary && s.attainment8 != null && (
           <div className="sp-headlines">
             <Headline label="Attainment 8" value={s.attainment8.toFixed(1)} decile={ctx.a8Decile} prev={s.a8_prev} />
-            {s.p8_prev != null && <Headline label="Progress 8 (2024)" value={(s.p8_prev > 0 ? '+' : '') + s.p8_prev.toFixed(2)} decile={ctx.p8PrevDecile} />}
+            {s.p8_prev != null && <Headline label="P8 (2024)" value={(s.p8_prev > 0 ? '+' : '') + s.p8_prev.toFixed(2)} decile={ctx.p8PrevDecile} />}
             {s.basics_94 != null && <Headline label="4+ Eng & Ma" value={s.basics_94 + '%'} decile={ctx.b94Decile} prev={s.b94_prev} />}
             {s.basics_95 != null && <Headline label="5+ Eng & Ma" value={s.basics_95 + '%'} decile={ctx.b95Decile} prev={s.b95_prev} />}
           </div>
@@ -233,7 +270,7 @@ const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
               <h3 className="sp-section-title" style={{ marginBottom: 0 }}>National Performance Profile</h3>
               <button className="sp-info-btn" onClick={() => setShowInfo(true)} title="What does this mean?">ⓘ</button>
             </div>
-            <RadarChart metrics={radarMetrics} size={320} />
+            <RadarChart metrics={radarMetrics} size={380} />
             <div className="sp-decile-legend">
               <span className="sp-dl-item"><span className="sp-dl-dot" style={{ background: '#0d7a42' }} />Top</span>
               <span className="sp-dl-item"><span className="sp-dl-dot" style={{ background: '#e8920e' }} />Mid-range</span>
@@ -242,7 +279,33 @@ const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
           </div>
         )}
 
-        {/* Disadvantaged */}
+        {/* KS4 Trends */}
+        {isSecondary && s.ks4_trend && s.ks4_trend.length >= 2 && (
+          <div className="sp-section">
+            <h3 className="sp-section-title">Performance Trends</h3>
+            <TrendChart data={s.ks4_trend} title="Attainment 8 & Progress 8"
+              metrics={[{ key: 'a8', label: 'Attainment 8' }, { key: 'p8', label: 'Progress 8' }]} />
+            <TrendChart data={s.ks4_trend} title="English & Maths Basics"
+              metrics={[{ key: 'b94', label: '4+ Eng & Ma' }, { key: 'b95', label: '5+ Eng & Ma' }]} />
+            {s.ks4_trend.some(t => t.a8d != null) && (
+              <TrendChart data={s.ks4_trend} title="Disadvantaged Attainment 8"
+                metrics={[{ key: 'a8d', label: 'Disadvantaged' }, { key: 'a8nd', label: 'Non-disadvantaged' }]} />
+            )}
+          </div>
+        )}
+
+        {/* KS2 Trends */}
+        {isPrimary && s.ks2_trend && s.ks2_trend.length >= 2 && (
+          <div className="sp-section">
+            <h3 className="sp-section-title">Performance Trends</h3>
+            <TrendChart data={s.ks2_trend} title="RWM Expected & Higher Standard"
+              metrics={[{ key: 'rwm', label: 'RWM Expected' }, { key: 'rwmh', label: 'RWM Higher' }]} />
+            <TrendChart data={s.ks2_trend} title="Subject Performance"
+              metrics={[{ key: 'rd', label: 'Reading Score' }, { key: 'mat', label: 'Maths %' }, { key: 'writ', label: 'Writing %' }]} />
+          </div>
+        )}
+
+        {/* Disadvantaged gap */}
         {isSecondary && s.a8_disadv != null && (
           <div className="sp-section">
             <h3 className="sp-section-title">Disadvantaged Gap</h3>
@@ -262,7 +325,6 @@ const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
           {onCompare && <button className="sp-btn sp-btn-secondary" onClick={() => onCompare(s)}>+ Compare</button>}
         </div>
       </div>
-
       {showInfo && <DecileInfoPopup onClose={() => setShowInfo(false)} />}
     </div>
   );

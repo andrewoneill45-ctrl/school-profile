@@ -122,6 +122,18 @@
 .sp-gap-val { font-size: 0.68rem; font-weight: 700; color: #475569; white-space: nowrap; }
 .sp-gap-diff { font-size: 0.66rem; font-weight: 600; color: #94a3b8; text-align: right; }
 
+/* Trend charts */
+.sp-trend { margin-bottom: 16px; }
+.sp-trend-title {
+  font-size: 0.82rem; font-weight: 700; color: #334155;
+  margin: 0 0 6px; padding: 0;
+}
+.sp-trend-legend {
+  display: flex; flex-wrap: wrap; gap: 14px; margin-top: 6px; padding-left: 50px;
+}
+.sp-tl-item { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: #64748b; font-weight: 600; }
+.sp-tl-line { width: 16px; height: 3px; border-radius: 2px; }
+
 /* Actions */
 .sp-actions {
   display: flex; gap: 8px; padding-top: 16px; border-top: 1px solid #f1f5f9;
