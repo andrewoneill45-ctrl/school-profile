@@ -148,6 +148,8 @@
 .sp-btn-primary:hover { background: #143d6b; }
 .sp-btn-secondary { background: #f1f5f9; color: #334155; }
 .sp-btn-secondary:hover { background: #e2e8f0; }
+.sp-btn-similar { background: #0f172a; color: white; }
+.sp-btn-similar:hover { background: #1e293b; }
 
 @media (max-width: 640px) {
   .sp-overlay { align-items: flex-end; justify-content: stretch; }

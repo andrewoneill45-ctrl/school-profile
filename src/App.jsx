@@ -6,6 +6,7 @@ import SearchBar from './components/SearchBar';
 import SchoolProfile, { decileColor } from './components/SchoolProfile';
 import ComparisonTray from './components/ComparisonTray';
 import ComparePanel from './components/ComparePanel';
+import SimilarSchoolsPanel from './components/SimilarSchoolsPanel';
 import { parseSearchQuery, applyFilters } from './utils/searchParser';
 import schoolsRaw from './schools.json';
 
@@ -120,6 +121,7 @@ const App = () => {
   const [hoverPos, setHoverPos] = useState(null);
   const [compareList, setCompareList] = useState([]);
   const [showCompare, setShowCompare] = useState(false);
+  const [similarTarget, setSimilarTarget] = useState(null);
   const [mapStyle, setMapStyle] = useState('light');
   const [showStats, setShowStats] = useState(false);
 
@@ -248,7 +250,8 @@ const App = () => {
 
       {showLanding && <LandingScreen onSearch={handleSearch} onExplore={() => setShowLanding(false)} schoolCount={schoolsData.length} />}
       {!showLanding && <SearchBar schools={schoolsData} query={searchQuery} onQueryChange={setSearchQuery} onSearch={handleSearch} resultCount={activeFilters ? filtered.length : null} activeFilters={activeFilters} onClearFilters={handleClearFilters} />}
-      {selectedSchool && <SchoolProfile school={selectedSchool} allSchools={schoolsData} onClose={() => setSelectedSchool(null)} onCompare={handleAddCompare} />}
+      {selectedSchool && <SchoolProfile school={{...selectedSchool, onFindSimilar: (s) => { setSimilarTarget(s); setSelectedSchool(null); }}} allSchools={schoolsData} onClose={() => setSelectedSchool(null)} onCompare={handleAddCompare} />}
+      {similarTarget && <SimilarSchoolsPanel school={similarTarget} allSchools={schoolsData} onClose={() => setSimilarTarget(null)} onSelectSchool={(s) => { setSimilarTarget(null); setSelectedSchool(s); }} />}
       {!showLanding && !showCompare && <ComparisonTray schools={compareList} onRemove={(urn) => setCompareList(prev => prev.filter(s => s.urn !== urn))} onCompare={() => setShowCompare(true)} />}
       {showCompare && <ComparePanel schools={compareList} allSchools={schoolsData} onRemove={(urn) => { setCompareList(prev => { const n = prev.filter(s => s.urn !== urn); if (n.length < 2) setShowCompare(false); return n; }); }} onClose={() => setShowCompare(false)} />}
 
