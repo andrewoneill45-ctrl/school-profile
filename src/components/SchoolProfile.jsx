@@ -205,7 +205,7 @@ const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
       if (s.basics_95 != null) m.push({ label: '5+ Eng & Maths', value: s.basics_95 + '%', decile: ctx.b95Decile });
       if (s.pupils != null) m.push({ label: 'School Size', value: s.pupils.toLocaleString(), decile: ctx.pupilDecile });
       if (s.p8_prev != null) m.push({ label: 'Progress 8 (2024)', value: (s.p8_prev > 0 ? '+' : '') + s.p8_prev.toFixed(2), decile: ctx.p8PrevDecile });
-      if (s.fsm_pct != null) m.push({ label: 'FSM', value: s.fsm_pct + '%', decile: 11 - (ctx.fsmDecile || 5) });
+      if (s.fsm_pct != null) m.push({ label: 'FSM', value: s.fsm_pct + '%', decile: ctx.fsmDecile });
       return m;
     }
     if (isPrimary) {
