@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import Map, { Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import LandingScreen from './components/LandingScreen';
@@ -8,23 +8,23 @@ import ComparisonTray from './components/ComparisonTray';
 import ComparePanel from './components/ComparePanel';
 import SimilarSchoolsPanel from './components/SimilarSchoolsPanel';
 import { parseSearchQuery, applyFilters } from './utils/searchParser';
-import schoolsRaw from './schools.json';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'pk.your_token_here';
 const MAP_STYLES = { light: 'mapbox://styles/mapbox/light-v11', dark: 'mapbox://styles/mapbox/dark-v11', satellite: 'mapbox://styles/mapbox/satellite-streets-v12' };
 const PHASE_COLORS = { Primary: '#2672c0', Secondary: '#b91c4a', Special: '#5b3fa0', Nursery: '#64748b', 'All-through': '#0d7a42', '16 plus': '#64748b' };
 
-const schoolsData = schoolsRaw.filter(s => {
-  const t = (s.type || '').toLowerCase();
-  return !t.includes('independent') && !t.includes('non-maintained special');
-});
-const schoolsByUrn = {};
-schoolsData.forEach(s => { schoolsByUrn[String(s.urn)] = s; });
+let _schoolsData = null, _schoolsByUrn = {}, _decileArrays = {};
 
-// Precompute decile arrays for fast lookup
-function buildDecileArrays(schools) {
+function initData(raw) {
+  _schoolsData = raw.filter(s => {
+    const t = (s.type || '').toLowerCase();
+    return !t.includes('independent') && !t.includes('non-maintained special');
+  });
+  _schoolsByUrn = {};
+  _schoolsData.forEach(s => { _schoolsByUrn[String(s.urn)] = s; });
+  
   const byPhase = {};
-  schools.forEach(s => {
+  _schoolsData.forEach(s => {
     const p = s.phase || 'Other';
     if (!byPhase[p]) byPhase[p] = {};
     const bp = byPhase[p];
@@ -33,13 +33,12 @@ function buildDecileArrays(schools) {
       if (s[k] != null) { if (!bp[k]) bp[k] = []; bp[k].push(s[k]); }
     });
   });
-  return byPhase;
+  _decileArrays = byPhase;
 }
-const decileArrays = buildDecileArrays(schoolsData);
 
 function quickDecile(val, phase, key) {
   if (val == null) return null;
-  const arr = decileArrays[phase]?.[key];
+  const arr = _decileArrays[phase]?.[key];
   if (!arr || !arr.length) return null;
   const rank = arr.filter(v => v < val).length / arr.length;
   return Math.min(10, Math.max(1, Math.ceil(rank * 10)));
@@ -113,6 +112,9 @@ const HM = ({ label, value, big, color }) => (
 /* ─── Main App ─────────────────────────────────── */
 const App = () => {
   const mapRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const [schoolsData, setSchoolsData] = useState([]);
+  const [schoolsByUrn, setSchoolsByUrn] = useState({});
   const [showLanding, setShowLanding] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilters, setActiveFilters] = useState(null);
@@ -125,7 +127,19 @@ const App = () => {
   const [mapStyle, setMapStyle] = useState('light');
   const [showStats, setShowStats] = useState(false);
 
-  const filtered = useMemo(() => activeFilters ? applyFilters(schoolsData, activeFilters) : schoolsData, [activeFilters]);
+  useEffect(() => {
+    fetch('/schools.json')
+      .then(r => r.json())
+      .then(raw => {
+        initData(raw);
+        setSchoolsData(_schoolsData);
+        setSchoolsByUrn(_schoolsByUrn);
+        setLoading(false);
+      })
+      .catch(err => { console.error('Failed to load schools data:', err); setLoading(false); });
+  }, []);
+
+  const filtered = useMemo(() => activeFilters ? applyFilters(schoolsData, activeFilters) : schoolsData, [activeFilters, schoolsData]);
 
   const geojson = useMemo(() => ({
     type: 'FeatureCollection',
@@ -218,6 +232,15 @@ const App = () => {
 
   const ofstedColors = { Outstanding: '#0d7a42', Good: '#1d5a9e', 'Requires improvement': '#e8920e', Inadequate: '#cc3333' };
   const ofstedOrder = ['Outstanding', 'Good', 'Requires improvement', 'Inadequate'];
+
+  if (loading) return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontFamily: "'Source Sans 3', sans-serif" }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '2rem', fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>School Profiles</div>
+        <div style={{ fontSize: '0.95rem', color: '#64748b' }}>Loading school data…</div>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
