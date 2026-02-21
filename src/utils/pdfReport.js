@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { findSimilarSchools } from './similarSchools';
 
 const NAVY = [11, 29, 51], BLUE = [29, 90, 158], GREEN = [13, 122, 66], RED = [204, 51, 51], AMBER = [232, 146, 14];
 const BLACK = [15, 23, 42], GREY = [100, 116, 139], LGREY = [241, 245, 249], WHITE = [255, 255, 255];
@@ -270,7 +271,7 @@ export function exportSchoolPDF(school, allSchools) {
     if (s.basics_95 != null) radarData.push({ label: '5+ E&M', value: s.basics_95 + '%', decile: decile(s.basics_95, vals(same, 'basics_95')) });
     if (s.pupils != null) radarData.push({ label: 'Size', value: s.pupils.toLocaleString(), decile: decile(s.pupils, vals(same, 'pupils')) });
     if (s.p8_prev != null) radarData.push({ label: 'P8 2024', value: (s.p8_prev > 0 ? '+' : '') + n(s.p8_prev, 2), decile: decile(s.p8_prev, vals(same, 'p8_prev')) });
-    if (s.fsm_pct != null) radarData.push({ label: 'FSM %', value: s.fsm_pct + '%', decile: 11 - (decile(s.fsm_pct, vals(same, 'fsm_pct')) || 5) });
+    if (s.fsm_pct != null) radarData.push({ label: 'FSM %', value: s.fsm_pct + '%', decile: decile(s.fsm_pct, vals(same, 'fsm_pct')) });
   }
   if (isPri) {
     if (s.ks2_rwm_exp != null) radarData.push({ label: 'RWM Exp', value: s.ks2_rwm_exp + '%', decile: decile(s.ks2_rwm_exp, vals(same, 'ks2_rwm_exp')) });
@@ -310,6 +311,85 @@ export function exportSchoolPDF(school, allSchools) {
     lines.forEach(line => { if (y > H - 20) { doc.addPage(); y = M; } doc.text(line, M, y); y += 4; });
     y += 4;
   });
+
+  // ── Similar Schools ──────────────────────────
+  const similar = findSimilarSchools(s, all, 10);
+  if (similar.length >= 3) {
+    if (y > H - 80) { doc.addPage(); y = M; }
+    doc.setFillColor(...BLUE); doc.rect(M, y - 1, 2.5, 6, 'F');
+    doc.setFontSize(9.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BLACK);
+    doc.text('Contextually Similar Schools', M + 6, y + 3.5); y += 8;
+    doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...GREY);
+    doc.text('Schools with similar intake profiles (FSM, SEN, EAL, size, region). Outcomes shown for comparison only.', M, y); y += 6;
+
+    // Table header
+    const cols = isSec
+      ? [{ l: 'School', w: 52 }, { l: 'Match', w: 14 }, { l: 'FSM', w: 12 }, { l: 'SEN', w: 12 }, { l: 'EAL', w: 12 }, { l: 'Pupils', w: 16 }, { l: 'A8', w: 14 }, { l: 'P8', w: 14 }, { l: '4+', w: 12 }, { l: 'Ofsted', w: 14 }]
+      : [{ l: 'School', w: 52 }, { l: 'Match', w: 14 }, { l: 'FSM', w: 12 }, { l: 'SEN', w: 12 }, { l: 'EAL', w: 12 }, { l: 'Pupils', w: 16 }, { l: 'RWM', w: 14 }, { l: 'Read', w: 14 }, { l: 'Maths', w: 12 }, { l: 'Ofsted', w: 14 }];
+    const totalW = cols.reduce((a, c) => a + c.w, 0);
+    const scale = CW / totalW;
+
+    // Header row
+    doc.setFillColor(241, 245, 249);
+    doc.rect(M, y, CW, 6, 'F');
+    let cx = M;
+    cols.forEach(c => {
+      doc.setFontSize(5.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...GREY);
+      doc.text(c.l.toUpperCase(), cx + 1, y + 4);
+      cx += c.w * scale;
+    });
+    y += 7;
+
+    // Target row
+    doc.setFillColor(240, 247, 255); doc.rect(M, y - 1, CW, 7, 'F');
+    cx = M;
+    const tVals = isSec
+      ? [s.name.substring(0, 28), '—', s.fsm_pct ?? '—', s.sen_all_pct ?? '—', s.eal_pct ?? '—', s.pupils?.toLocaleString() ?? '—', s.attainment8 != null ? n(s.attainment8) : '—', s.p8_prev != null ? (s.p8_prev > 0 ? '+' : '') + n(s.p8_prev, 2) : '—', s.basics_94 != null ? s.basics_94 + '%' : '—', s.ofsted || '—']
+      : [s.name.substring(0, 28), '—', s.fsm_pct ?? '—', s.sen_all_pct ?? '—', s.eal_pct ?? '—', s.pupils?.toLocaleString() ?? '—', s.ks2_rwm_exp != null ? s.ks2_rwm_exp + '%' : '—', s.ks2_read_avg != null ? n(s.ks2_read_avg, 0) : '—', s.ks2_mat_exp != null ? s.ks2_mat_exp + '%' : '—', s.ofsted || '—'];
+    tVals.forEach((v, i) => {
+      doc.setFontSize(6); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BLUE);
+      doc.text(String(v), cx + 1, y + 3.5);
+      cx += cols[i].w * scale;
+    });
+    y += 8;
+
+    // Result rows
+    similar.forEach((r, ri) => {
+      if (y > H - 20) { doc.addPage(); y = M; }
+      const rs = r.school;
+      if (ri % 2 === 0) { doc.setFillColor(248, 250, 252); doc.rect(M, y - 1, CW, 7, 'F'); }
+      cx = M;
+      const rVals = isSec
+        ? [rs.name.substring(0, 28), r.similarity + '%', rs.fsm_pct ?? '—', rs.sen_all_pct ?? '—', rs.eal_pct ?? '—', rs.pupils?.toLocaleString() ?? '—', rs.attainment8 != null ? n(rs.attainment8) : '—', rs.p8_prev != null ? (rs.p8_prev > 0 ? '+' : '') + n(rs.p8_prev, 2) : '—', rs.basics_94 != null ? rs.basics_94 + '%' : '—', rs.ofsted || '—']
+        : [rs.name.substring(0, 28), r.similarity + '%', rs.fsm_pct ?? '—', rs.sen_all_pct ?? '—', rs.eal_pct ?? '—', rs.pupils?.toLocaleString() ?? '—', rs.ks2_rwm_exp != null ? rs.ks2_rwm_exp + '%' : '—', rs.ks2_read_avg != null ? n(rs.ks2_read_avg, 0) : '—', rs.ks2_mat_exp != null ? rs.ks2_mat_exp + '%' : '—', rs.ofsted || '—'];
+      rVals.forEach((v, i) => {
+        const isOutcome = isSec ? i >= 6 && i <= 8 : i >= 6 && i <= 8;
+        let col = BLACK;
+        if (isOutcome && i === 6) { // A8 or RWM
+          const tv = isSec ? s.attainment8 : s.ks2_rwm_exp;
+          const sv = parseFloat(v);
+          if (tv != null && !isNaN(sv)) col = sv > tv + 3 ? GREEN : sv < tv - 3 ? RED : BLACK;
+        }
+        if (isOutcome && i === 7) { // P8 or Read
+          const tv = isSec ? s.p8_prev : s.ks2_read_avg;
+          const sv = parseFloat(v);
+          if (tv != null && !isNaN(sv)) col = isSec ? (sv > tv + 0.1 ? GREEN : sv < tv - 0.1 ? RED : BLACK) : (sv > tv + 2 ? GREEN : sv < tv - 2 ? RED : BLACK);
+        }
+        doc.setFontSize(6); doc.setFont('helvetica', i === 0 ? 'bold' : 'normal'); doc.setTextColor(...col);
+        doc.text(String(v), cx + 1, y + 3.5);
+        cx += cols[i].w * scale;
+      });
+      y += 7;
+    });
+    y += 4;
+
+    // Methodology note
+    if (y > H - 20) { doc.addPage(); y = M; }
+    doc.setFontSize(5.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...GREY);
+    const methLines = wrap(doc, 'Methodology: Weighted contextual similarity — FSM (25%), EAL (15%), SEN K (13%), EHCP (12%), size (10%), stability (10%), region (15%). Same phase and gender. Outcomes do not influence rankings.', CW);
+    methLines.forEach(line => { doc.text(line, M, y); y += 3; });
+    y += 4;
+  }
 
   // ── Footer ──────────────────────────────────
   const tp = doc.internal.getNumberOfPages();
