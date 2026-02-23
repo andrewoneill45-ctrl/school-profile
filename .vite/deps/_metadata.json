@@ -1,0 +1,58 @@
+{
+  "hash": "1df9459e",
+  "configHash": "14d77ef4",
+  "lockfileHash": "f4102245",
+  "browserHash": "b5f410b1",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "2e2de4e8",
+      "needsInterop": true
+    },
+    "react-map-gl": {
+      "src": "../../node_modules/react-map-gl/dist/esm/index.js",
+      "file": "react-map-gl.js",
+      "fileHash": "7fdc0779",
+      "needsInterop": false
+    },
+    "jspdf": {
+      "src": "../../node_modules/jspdf/dist/jspdf.es.min.js",
+      "file": "jspdf.js",
+      "fileHash": "38778761",
+      "needsInterop": false
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "7d6ea4ae",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "chunk-HCGKX5ED": {
+      "file": "chunk-HCGKX5ED.js"
+    },
+    "chunk-WNPTCGAH": {
+      "file": "chunk-WNPTCGAH.js"
+    },
+    "mapbox-gl-5VNOPN6S": {
+      "file": "mapbox-gl-5VNOPN6S.js"
+    },
+    "html2canvas.esm-GYTW3GBG": {
+      "file": "html2canvas__esm-GYTW3GBG.js"
+    },
+    "purify.es-5EQ5C6MC": {
+      "file": "purify__es-5EQ5C6MC.js"
+    },
+    "index.es-6PQVNAND": {
+      "file": "index__es-6PQVNAND.js"
+    },
+    "chunk-SITVF2AJ": {
+      "file": "chunk-SITVF2AJ.js"
+    },
+    "chunk-5WRI5ZAA": {
+      "file": "chunk-5WRI5ZAA.js"
+    }
+  }
+}

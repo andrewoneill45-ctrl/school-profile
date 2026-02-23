@@ -1,171 +1,187 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import './SearchBar.css';
 
-const SearchBar = ({ schools, query, onQueryChange, onSearch, resultCount, activeFilters, onClearFilters }) => {
-  const [isFocused, setIsFocused] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const [selectedIdx, setSelectedIdx] = useState(-1);
-  const inputRef = useRef(null);
-  const suggestionsRef = useRef(null);
+const QUICK_FILTERS = [
+  { label: 'Outstanding secondaries', q: 'outstanding secondary' },
+  { label: 'Catholic primaries', q: 'catholic primary' },
+  { label: 'Grammar schools', q: 'grammar schools' },
+  { label: 'Harris academies', q: 'harris' },
+  { label: 'High FSM secondaries', q: 'secondary fsm above 50' },
+  { label: 'Positive Progress 8', q: 'secondary positive progress' },
+];
 
-  // Build autocomplete index
-  const autocompleteData = useMemo(() => {
-    if (!schools || schools.length === 0) return { names: [], las: [], towns: [], trusts: [] };
-    const names = [...new Set(schools.map(s => s.name))].filter(Boolean).slice(0, 500);
-    const las = [...new Set(schools.map(s => s.la))].filter(Boolean).sort();
-    const towns = [...new Set(schools.map(s => s.town))].filter(Boolean).sort();
-    const trusts = [...new Set(schools.map(s => s.trust))].filter(Boolean).sort().slice(0, 200);
-    return { names, las, towns, trusts };
+const SearchBar = ({ schools, query, onQueryChange, onSearch, resultCount, activeFilters, onClearFilters }) => {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState(query || '');
+  const [suggestions, setSuggestions] = useState([]);
+  const [selIdx, setSelIdx] = useState(-1);
+  const inputRef = useRef(null);
+
+  const data = useMemo(() => {
+    if (!schools?.length) return { names: [], las: [], towns: [], trusts: [] };
+    return {
+      names: [...new Set(schools.map(s => s.name))].filter(Boolean).slice(0, 800),
+      las: [...new Set(schools.map(s => s.la))].filter(Boolean).sort(),
+      towns: [...new Set(schools.map(s => s.town))].filter(Boolean).sort(),
+      trusts: [...new Set(schools.map(s => s.trust).filter(Boolean))].sort(),
+    };
   }, [schools]);
 
-  // Generate suggestions
   useEffect(() => {
-    if (!query || query.length < 2 || !isFocused) {
-      setSuggestions([]);
-      return;
-    }
+    if (open && inputRef.current) inputRef.current.focus();
+  }, [open]);
 
-    const q = query.toLowerCase();
-    const results = [];
+  useEffect(() => {
+    if (!input || input.length < 2 || !open) { setSuggestions([]); return; }
+    const q = input.toLowerCase();
+    const r = [];
+    // School name matches
+    data.names.filter(n => n.toLowerCase().includes(q)).slice(0, 3)
+      .forEach(n => r.push({ label: n, q: n, type: 'School' }));
+    // LA matches
+    data.las.filter(n => n.toLowerCase().includes(q)).slice(0, 2)
+      .forEach(n => r.push({ label: n, q: n, type: 'LA' }));
+    // Town matches
+    data.towns.filter(n => n.toLowerCase().includes(q) && !data.las.some(la => la.toLowerCase() === n.toLowerCase())).slice(0, 2)
+      .forEach(n => r.push({ label: n, q: n, type: 'Town' }));
+    // Trust matches
+    data.trusts.filter(n => n.toLowerCase().includes(q)).slice(0, 2)
+      .forEach(n => r.push({ label: n, q: n, type: 'Trust' }));
+    setSuggestions(r.slice(0, 8));
+    setSelIdx(-1);
+  }, [input, open, data]);
 
-    // Match school names
-    autocompleteData.names
-      .filter(n => n.toLowerCase().includes(q))
-      .slice(0, 4)
-      .forEach(n => results.push({ type: 'school', label: n, icon: '🏫' }));
+  const doSearch = (searchQuery) => {
+    const sq = searchQuery || input;
+    if (!sq.trim()) return;
+    onSearch(sq.trim());
+    setOpen(false);
+    setSuggestions([]);
+  };
 
-    // Match LAs
-    autocompleteData.las
-      .filter(n => n.toLowerCase().includes(q))
-      .slice(0, 3)
-      .forEach(n => results.push({ type: 'la', label: `Schools in ${n}`, query: `in ${n}`, icon: '📍' }));
-
-    // Match towns
-    autocompleteData.towns
-      .filter(n => n.toLowerCase().includes(q))
-      .slice(0, 2)
-      .forEach(n => results.push({ type: 'town', label: `Schools in ${n}`, query: `in ${n}`, icon: '🏘️' }));
-
-    // Match trusts
-    autocompleteData.trusts
-      .filter(n => n.toLowerCase().includes(q))
-      .slice(0, 2)
-      .forEach(n => results.push({ type: 'trust', label: n, query: `trust ${n}`, icon: '🔗' }));
-
-    setSuggestions(results.slice(0, 8));
-    setSelectedIdx(-1);
-  }, [query, isFocused, autocompleteData]);
-
-  const handleSubmit = (e) => {
+  const submit = e => {
     e.preventDefault();
-    if (selectedIdx >= 0 && suggestions[selectedIdx]) {
-      const s = suggestions[selectedIdx];
-      onSearch(s.query || s.label);
-    } else if (query.trim()) {
-      onSearch(query.trim());
-    }
-    setSuggestions([]);
-    inputRef.current?.blur();
+    if (selIdx >= 0 && suggestions[selIdx]) doSearch(suggestions[selIdx].q);
+    else doSearch();
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIdx(prev => Math.min(prev + 1, suggestions.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIdx(prev => Math.max(prev - 1, -1));
-    } else if (e.key === 'Escape') {
-      setSuggestions([]);
-      inputRef.current?.blur();
-    }
+  const keyDown = e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSelIdx(p => Math.min(p + 1, suggestions.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSelIdx(p => Math.max(p - 1, -1)); }
+    else if (e.key === 'Escape') { setOpen(false); setSuggestions([]); }
   };
 
-  const handleSuggestionClick = (suggestion) => {
-    onSearch(suggestion.query || suggestion.label);
-    setSuggestions([]);
+  const handleOpen = () => {
+    setInput(query || '');
+    setOpen(true);
   };
 
-  // Describe active filters as chips
-  const filterChips = useMemo(() => {
+  const handleClear = () => {
+    setInput('');
+    onQueryChange('');
+    onClearFilters();
+    setOpen(false);
+  };
+
+  // Chips for active filters
+  const chips = useMemo(() => {
     if (!activeFilters) return [];
-    const chips = [];
-    if (activeFilters.phase) chips.push({ key: 'phase', label: activeFilters.phase });
-    if (activeFilters.ofsted) chips.push({ key: 'ofsted', label: activeFilters.ofsted });
-    if (activeFilters.region) chips.push({ key: 'region', label: activeFilters.region });
-    if (activeFilters.locationQuery) chips.push({ key: 'location', label: `in ${activeFilters.locationQuery}` });
-    if (activeFilters.postcodeQuery) chips.push({ key: 'postcode', label: activeFilters.postcodeQuery });
-    if (activeFilters.minAttainment8) chips.push({ key: 'a8', label: `A8 > ${activeFilters.minAttainment8}` });
-    if (activeFilters.minProgress8) chips.push({ key: 'p8', label: `P8 > ${activeFilters.minProgress8}` });
-    return chips;
+    const c = [];
+    if (activeFilters.phase) c.push(activeFilters.phase);
+    if (activeFilters.ofsted) c.push(activeFilters.ofsted);
+    if (activeFilters.ofstedMulti) c.push(activeFilters.ofstedMulti.join(' / '));
+    if (activeFilters.region) c.push(activeFilters.region);
+    if (activeFilters.locationQuery) c.push(activeFilters.locationQuery);
+    if (activeFilters.postcodeQuery) c.push(activeFilters.postcodeQuery);
+    if (activeFilters.trustQuery) c.push(activeFilters.trustQuery);
+    if (activeFilters.typeQuery) c.push(activeFilters.typeQuery);
+    if (activeFilters.faithQuery && activeFilters.faithQuery !== '_any_faith') c.push(activeFilters.faithQuery);
+    if (activeFilters.gender) c.push(activeFilters.gender);
+    if (activeFilters.minAttainment8) c.push('A8 ≥ ' + activeFilters.minAttainment8);
+    if (activeFilters.minProgress8) c.push('P8 ≥ ' + activeFilters.minProgress8);
+    if (activeFilters.minFSM) c.push('FSM ≥ ' + activeFilters.minFSM + '%');
+    if (activeFilters.fuzzyQuery) c.push('"' + activeFilters.fuzzyQuery + '"');
+    return c;
   }, [activeFilters]);
 
   return (
-    <div className="search-bar-container">
-      <form className="search-bar" onSubmit={handleSubmit}>
-        <div className={`search-bar-inner ${isFocused ? 'focused' : ''}`}>
-          <svg className="sb-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            ref={inputRef}
-            type="text"
-            className="sb-input"
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setTimeout(() => setIsFocused(false), 200)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search schools by name, location, or try a natural language query..."
-          />
-          {query && (
-            <button type="button" className="sb-clear" onClick={() => { onQueryChange(''); onClearFilters(); }}>
-              ✕
-            </button>
-          )}
-        </div>
+    <>
+      {/* Compact trigger button */}
+      <button className="srch-btn" onClick={handleOpen}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span className="srch-btn-text">{activeFilters ? chips.join(' · ') || 'Search' : 'Search schools…'}</span>
+        {resultCount != null && <span className="srch-btn-count">{resultCount.toLocaleString()}</span>}
+      </button>
 
-        {/* Autocomplete dropdown */}
-        {suggestions.length > 0 && isFocused && (
-          <div className="sb-suggestions" ref={suggestionsRef}>
-            {suggestions.map((s, i) => (
-              <button
-                key={i}
-                type="button"
-                className={`sb-suggestion ${i === selectedIdx ? 'selected' : ''}`}
-                onMouseDown={() => handleSuggestionClick(s)}
-              >
-                <span className="sb-suggestion-icon">{s.icon}</span>
-                <span className="sb-suggestion-label">{s.label}</span>
-                <span className="sb-suggestion-type">{s.type}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </form>
-
-      {/* Filter chips and result count */}
-      {(filterChips.length > 0 || resultCount != null) && (
-        <div className="search-meta">
-          {filterChips.map(chip => (
-            <span key={chip.key} className="filter-chip">
-              {chip.label}
-            </span>
-          ))}
-          {resultCount != null && (
-            <span className="result-count">
-              {resultCount.toLocaleString()} school{resultCount !== 1 ? 's' : ''} found
-            </span>
-          )}
-          {filterChips.length > 0 && (
-            <button className="clear-all" onClick={onClearFilters}>
-              Clear all
-            </button>
-          )}
+      {/* Active filter chips (shown below button) */}
+      {chips.length > 0 && (
+        <div className="srch-chips">
+          {chips.map((c, i) => <span key={i} className="srch-chip">{c}</span>)}
+          <button className="srch-chip-clear" onClick={handleClear}>✕ Clear</button>
         </div>
       )}
-    </div>
+
+      {/* Full-screen search overlay */}
+      {open && (
+        <div className="srch-overlay" onClick={() => setOpen(false)}>
+          <div className="srch-panel" onClick={e => e.stopPropagation()}>
+            <form onSubmit={submit} className="srch-form">
+              <svg className="srch-form-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input
+                ref={inputRef}
+                className="srch-input"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={keyDown}
+                placeholder="Search by name, place, trust, or describe what you're looking for…"
+                autoComplete="off"
+              />
+              {input && <button type="button" className="srch-clear" onClick={() => setInput('')}>✕</button>}
+              <button type="submit" className="srch-go">Search</button>
+            </form>
+
+            {/* Suggestions */}
+            {suggestions.length > 0 && (
+              <div className="srch-sugg">
+                {suggestions.map((s, i) => (
+                  <button key={i} type="button"
+                    className={'srch-sugg-item ' + (i === selIdx ? 'srch-sugg-sel' : '')}
+                    onMouseDown={() => doSearch(s.q)}>
+                    <span className="srch-sugg-label">{s.label}</span>
+                    <span className="srch-sugg-type">{s.type}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Quick filters */}
+            {!input && (
+              <div className="srch-quick">
+                <div className="srch-quick-title">Quick searches</div>
+                <div className="srch-quick-grid">
+                  {QUICK_FILTERS.map((qf, i) => (
+                    <button key={i} className="srch-quick-btn" onClick={() => doSearch(qf.q)}>
+                      {qf.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="srch-quick-title" style={{ marginTop: 16 }}>Try things like</div>
+                <div className="srch-examples">
+                  <span>"Outstanding secondaries in Camden"</span>
+                  <span>"Catholic primaries sunderland"</span>
+                  <span>"Harris academies"</span>
+                  <span>"Secondary fsm above 40 london"</span>
+                  <span>"SW1"</span>
+                  <span>"Good or outstanding primary north east"</span>
+                </div>
+              </div>
+            )}
+
+            <button className="srch-close" onClick={() => setOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

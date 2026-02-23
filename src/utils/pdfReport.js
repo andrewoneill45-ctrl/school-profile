@@ -1,520 +1,406 @@
-/**
- * Professional PDF School Report Generator
- * Produces DfE-styled A4 reports with rich narrative prose
- */
 import jsPDF from 'jspdf';
+import { findSimilarSchools } from './similarSchools';
 
-// ─── Colours ─────────────────────────────────────────────────
-const NAVY = [0, 48, 120];
-const BLUE = [29, 112, 184];
-const GREEN = [0, 112, 60];
-const RED = [212, 53, 28];
-const AMBER = [244, 119, 56];
-const BLACK = [11, 12, 12];
-const GREY = [80, 90, 95];
-const LIGHT_GREY = [243, 242, 241];
-const WHITE = [255, 255, 255];
+const NAVY = [11, 29, 51], BLUE = [29, 90, 158], GREEN = [13, 122, 66], RED = [204, 51, 51], AMBER = [232, 146, 14];
+const BLACK = [15, 23, 42], GREY = [100, 116, 139], LGREY = [241, 245, 249], WHITE = [255, 255, 255];
+const ofC = r => r === 'Outstanding' ? GREEN : r === 'Good' ? BLUE : r === 'Requires improvement' ? AMBER : r === 'Inadequate' ? RED : GREY;
+function wrap(d, t, w) { return d.splitTextToSize(t, w); }
+function n(v, dp = 1) { return v != null ? Number(v).toFixed(dp) : null; }
+function pct(val, arr) { if (val == null || !arr.length) return null; return Math.round(arr.filter(v => v < val).length / arr.length * 100); }
+function avg(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null; }
+function decile(val, arr) { if (val == null || !arr.length) return null; const s = [...arr].sort((a, b) => a - b); const r = s.filter(v => v < val).length / s.length; return Math.min(10, Math.max(1, Math.ceil(r * 10))); }
+function decCol(d) { if (d >= 8) return GREEN; if (d >= 5) return AMBER; return RED; }
+function decText(d) { if (d >= 8) return 'top nationally'; if (d >= 5) return 'mid-range nationally'; return 'below average nationally'; }
+function ordinal(n) { const s = ['th', 'st', 'nd', 'rd']; const v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+function pctDesc(p) { if (p >= 90) return 'in the top 10% nationally'; if (p >= 75) return 'in the top quartile'; if (p >= 50) return 'above the national average'; if (p >= 25) return 'below the national average'; return 'in the lowest quartile'; }
 
-function getOfstedColor(r) {
-  switch (r) {
-    case 'Outstanding': return GREEN;
-    case 'Good': return BLUE;
-    case 'Requires improvement': case 'Requires Improvement': return AMBER;
-    case 'Inadequate': return RED;
-    default: return GREY;
+function drawRadar(doc, cx, cy, r, metrics) {
+  const n = metrics.length;
+  if (n < 3) return;
+  const step = (2 * Math.PI) / n, start = -Math.PI / 2;
+  const pt = (i, v) => ({ x: cx + (v / 10) * r * Math.cos(start + i * step), y: cy + (v / 10) * r * Math.sin(start + i * step) });
+
+  // Grid
+  [2, 4, 6, 8, 10].forEach(ring => {
+    doc.setDrawColor(225, 230, 240); doc.setLineWidth(ring === 10 ? 0.4 : 0.15);
+    const pts = Array.from({ length: n }, (_, i) => pt(i, ring));
+    pts.forEach((p, i) => { const nx = pts[(i + 1) % n]; doc.line(p.x, p.y, nx.x, nx.y); });
+  });
+  // Axes
+  for (let i = 0; i < n; i++) { const p = pt(i, 10); doc.setDrawColor(225, 230, 240); doc.setLineWidth(0.1); doc.line(cx, cy, p.x, p.y); }
+
+  // Fill
+  doc.setFillColor(29, 90, 158); doc.setGState(new doc.GState({ opacity: 0.12 }));
+  const dPts = metrics.map((m, i) => pt(i, m.decile || 0));
+  doc.moveTo(dPts[0].x, dPts[0].y);
+  const pathLines = dPts.slice(1).map(p => `${p.x} ${p.y} l`).join(' ');
+  // Manual polygon via lines
+  doc.setDrawColor(29, 90, 158); doc.setLineWidth(0.6);
+  doc.setGState(new doc.GState({ opacity: 1 }));
+  for (let i = 0; i < dPts.length; i++) {
+    const a = dPts[i], b = dPts[(i + 1) % dPts.length];
+    doc.line(a.x, a.y, b.x, b.y);
   }
+
+  // Points & labels
+  metrics.forEach((m, i) => {
+    const p = pt(i, m.decile || 0);
+    const col = decCol(m.decile || 1);
+    doc.setFillColor(...col); doc.circle(p.x, p.y, 1.5, 'F');
+
+    const lp = pt(i, 12.5);
+    const angle = start + i * step;
+    const align = lp.x < cx - 2 ? 'right' : lp.x > cx + 2 ? 'left' : 'center';
+    doc.setFontSize(6.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BLACK);
+    doc.text(m.label, lp.x, lp.y - 1.5, { align });
+    doc.setFontSize(6); doc.setFont('helvetica', 'normal'); doc.setTextColor(...col);
+    doc.text(`D${m.decile} · ${m.value}`, lp.x, lp.y + 2, { align });
+  });
 }
 
-function wrap(doc, text, w) { return doc.splitTextToSize(text, w); }
-function fmt(n, d = 1) { return n != null ? Number(n).toFixed(d) : null; }
-
-// ─── Statistical helpers ─────────────────────────────────────
-
-function percentileOf(value, allValues) {
-  if (value == null || !allValues.length) return null;
-  const sorted = [...allValues].sort((a, b) => a - b);
-  const pos = sorted.filter(v => v < value).length;
-  return Math.round((pos / sorted.length) * 100);
-}
-
-function percentileLabel(p) {
-  if (p == null) return '';
-  if (p >= 95) return 'among the highest performing in the country';
-  if (p >= 90) return 'in the top 10% nationally';
-  if (p >= 80) return 'in the top 20% nationally';
-  if (p >= 75) return 'in the top quartile nationally';
-  if (p >= 60) return 'above the national average';
-  if (p >= 40) return 'broadly in line with the national average';
-  if (p >= 25) return 'below the national average';
-  if (p >= 10) return 'in the lowest quartile nationally';
-  return 'significantly below the national average';
-}
-
-function nationalAvg(values) {
-  if (!values.length) return null;
-  return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
-// ─── Narrative generation ────────────────────────────────────
-
-function generateNarrative(school, allSchools) {
-  const s = school;
-  const isSecondary = s.phase === 'Secondary' || s.phase === 'All-through';
-  const isPrimary = s.phase === 'Primary';
-  const samePhase = allSchools ? allSchools.filter(x => x.phase === s.phase) : [];
-  const laSchools = allSchools ? allSchools.filter(x => x.la === s.la && x.phase === s.phase) : [];
+function buildNarrative(s, all) {
+  const isSec = s.phase === 'Secondary' || s.phase === 'All-through', isPri = s.phase === 'Primary';
+  const same = all.filter(x => x.phase === s.phase), la = same.filter(x => x.la === s.la);
+  const vals = (arr, k) => arr.map(x => x[k]).filter(v => v != null);
   const sections = [];
 
-  // ─── SECTION 1: Overview ───────────────────────
-  let overview = `${s.name} is a ${(s.type || 'school').toLowerCase()} situated in ${s.town || s.la}`;
-  if (s.region && s.region !== s.town) overview += `, in the ${s.region} region of England`;
-  overview += '. ';
-
-  if (s.religiousCharacter && s.religiousCharacter !== 'None' && s.religiousCharacter !== 'Does not apply') {
-    overview += `The school has a ${s.religiousCharacter} religious character. `;
-  }
-
-  if (s.trust) {
-    overview += `It operates as part of the ${s.trust}`;
-    // Count trust schools
-    if (allSchools) {
-      const trustSchools = allSchools.filter(x => x.trust === s.trust);
-      if (trustSchools.length > 1) {
-        overview += `, a multi-academy trust comprising ${trustSchools.length} schools across England`;
-      }
-    }
-    overview += '. ';
-  }
-
-  if (s.gender && s.gender !== 'Mixed') {
-    overview += `It is a ${s.gender.toLowerCase()} school. `;
-  }
-
-  sections.push({ title: 'Overview', text: overview });
-
-  // ─── SECTION 2: School community ───────────────
-  let community = '';
-
-  if (s.pupils) {
-    const pupilPct = percentileOf(s.pupils, samePhase.map(x => x.pupils).filter(Boolean));
-    let sizeDesc = 'average-sized';
-    if (pupilPct >= 80) sizeDesc = 'larger than average';
-    else if (pupilPct >= 95) sizeDesc = 'one of the largest';
-    else if (pupilPct <= 20) sizeDesc = 'smaller than average';
-    else if (pupilPct <= 5) sizeDesc = 'one of the smallest';
-
-    community += `With ${s.pupils.toLocaleString()} pupils on roll, ${s.name} is ${sizeDesc} for a ${s.phase?.toLowerCase()} school`;
-    if (s.capacity) {
-      const occupancy = Math.round((s.pupils / s.capacity) * 100);
-      community += `, operating at ${occupancy}% of its capacity of ${s.capacity.toLocaleString()} places`;
-    }
-    community += '. ';
-  }
-
+  // Overview
+  let ov = s.name + ' is a ' + (s.type || 'school').toLowerCase() + ' located in ' + [s.town, s.la].filter(Boolean).join(', ');
+  if (s.region) ov += ' (' + s.region + ')';
+  ov += '. ';
+  if (s.trust) { const ts = all.filter(x => x.trust === s.trust); ov += 'Part of ' + s.trust + ' (' + ts.length + ' schools). '; }
+  if (s.pupils) ov += s.pupils.toLocaleString() + ' pupils on roll. ';
   if (s.fsm_pct != null) {
-    const nationalFSMAvg = nationalAvg(samePhase.map(x => x.fsm_pct).filter(v => v != null));
-    let fsmContext = '';
-    if (nationalFSMAvg) {
-      const diff = s.fsm_pct - nationalFSMAvg;
-      if (diff > 15) fsmContext = 'substantially above';
-      else if (diff > 5) fsmContext = 'above';
-      else if (diff > -5) fsmContext = 'broadly in line with';
-      else if (diff > -15) fsmContext = 'below';
-      else fsmContext = 'substantially below';
-      community += `The proportion of pupils eligible for free school meals stands at ${s.fsm_pct}%, which is ${fsmContext} the national average of ${nationalFSMAvg.toFixed(1)}% for ${s.phase?.toLowerCase()} schools. `;
-    } else {
-      community += `${s.fsm_pct}% of pupils are eligible for free school meals. `;
-    }
-
-    if (s.fsm_pct > 30) {
-      community += `This higher-than-average level of disadvantage provides important context when considering the school's performance outcomes. `;
-    }
+    const nf = avg(vals(same, 'fsm_pct'));
+    ov += 'FSM: ' + s.fsm_pct + '%';
+    if (nf) { ov += s.fsm_pct > nf + 10 ? ', significantly above' : s.fsm_pct > nf + 3 ? ', above' : s.fsm_pct > nf - 3 ? ', in line with' : ', below'; ov += ' the national average (' + n(nf) + '%). '; }
   }
+  sections.push({ title: 'School Overview', text: ov });
 
-  if (laSchools.length > 1) {
-    community += `The school is one of ${laSchools.length} ${s.phase?.toLowerCase()} schools serving the ${s.la} local authority area. `;
-  }
-
-  if (community) sections.push({ title: 'School Community', text: community });
-
-  // ─── SECTION 3: Ofsted ─────────────────────────
-  if (s.ofsted && s.ofsted !== 'Not inspected') {
-    let ofstedText = `At its most recent inspection, Ofsted judged ${s.name} to be ${s.ofsted}. `;
-
-    if (allSchools) {
-      const ofstedCounts = {};
-      samePhase.forEach(x => {
-        if (x.ofsted && x.ofsted !== 'Not inspected') {
-          ofstedCounts[x.ofsted] = (ofstedCounts[x.ofsted] || 0) + 1;
-        }
-      });
-      const totalInspected = Object.values(ofstedCounts).reduce((a, b) => a + b, 0);
-      const sameRatingCount = ofstedCounts[s.ofsted] || 0;
-      const sameRatingPct = totalInspected > 0 ? Math.round((sameRatingCount / totalInspected) * 100) : null;
-
-      if (sameRatingPct) {
-        ofstedText += `Nationally, ${sameRatingPct}% of inspected ${s.phase?.toLowerCase()} schools hold a rating of ${s.ofsted}. `;
-      }
-    }
-
-    // LA Ofsted context
-    if (laSchools.length > 2) {
-      const laOfsted = {};
-      laSchools.forEach(x => {
-        if (x.ofsted && x.ofsted !== 'Not inspected') {
-          laOfsted[x.ofsted] = (laOfsted[x.ofsted] || 0) + 1;
-        }
-      });
-      const laOutstandingPct = laOfsted['Outstanding'] ? Math.round((laOfsted['Outstanding'] / laSchools.length) * 100) : 0;
-      const laGoodPlusPct = ((laOfsted['Outstanding'] || 0) + (laOfsted['Good'] || 0));
-      const laGoodPlusPctVal = Math.round((laGoodPlusPct / laSchools.length) * 100);
-      ofstedText += `Within ${s.la}, ${laGoodPlusPctVal}% of ${s.phase?.toLowerCase()} schools are rated Good or Outstanding. `;
-    }
-
-    sections.push({ title: 'Inspection', text: ofstedText });
-  }
-
-  // ─── SECTION 4: KS4 Performance ────────────────
-  if (isSecondary && (s.attainment8 != null || s.basics_94 != null || s.progress8 != null)) {
-    let perfText = '';
-
+  // Performance
+  if (isSec) {
+    let p = '';
     if (s.attainment8 != null) {
-      const a8Values = samePhase.map(x => x.attainment8).filter(v => v != null);
-      const pct = percentileOf(s.attainment8, a8Values);
-      const avg = nationalAvg(a8Values);
-      const laA8Values = laSchools.map(x => x.attainment8).filter(v => v != null);
-      const laAvg = nationalAvg(laA8Values);
-
-      perfText += `The school's Attainment 8 score of ${fmt(s.attainment8)} places it ${percentileLabel(pct)}`;
-      if (avg) perfText += `, compared to a national average of ${fmt(avg)}`;
-      perfText += '. ';
-
-      if (laAvg && laA8Values.length > 2) {
-        const vsLA = s.attainment8 > laAvg ? 'above' : s.attainment8 < laAvg - 2 ? 'below' : 'in line with';
-        perfText += `This is ${vsLA} the ${s.la} local authority average of ${fmt(laAvg)}. `;
-      }
-
-      // Contextualised by disadvantage
-      if (s.fsm_pct != null && s.fsm_pct > 25 && pct >= 50) {
-        perfText += `This performance is particularly notable given the school's higher-than-average proportion of disadvantaged pupils. `;
-      }
+      const d = decile(s.attainment8, vals(same, 'attainment8')); const na = avg(vals(same, 'attainment8'));
+      p += 'Attainment 8 of ' + n(s.attainment8) + ' places the school in decile ' + d + ' (' + decText(d) + ').';
+      if (na) p += ' National average: ' + n(na) + '.';
+      const laA = avg(vals(la, 'attainment8'));
+      if (laA && la.length > 2) { p += ' ' + s.la + ' average: ' + n(laA) + '.'; }
+      if (s.a8_prev != null) { const ch = s.attainment8 - s.a8_prev; p += ' ' + (ch > 0 ? 'Up' : 'Down') + ' ' + Math.abs(ch).toFixed(1) + ' from 2024 (' + n(s.a8_prev) + '). '; }
+      p += ' ';
     }
-
-    if (s.progress8 != null) {
-      const p8Values = samePhase.map(x => x.progress8).filter(v => v != null);
-      const pct = percentileOf(s.progress8, p8Values);
-      const sign = s.progress8 > 0 ? '+' : '';
-
-      perfText += `The school's Progress 8 score of ${sign}${fmt(s.progress8, 2)} indicates that, on average, pupils make `;
-      if (s.progress8 > 0.5) perfText += 'substantially more';
-      else if (s.progress8 > 0.2) perfText += 'more';
-      else if (s.progress8 > -0.2) perfText += 'similar';
-      else if (s.progress8 > -0.5) perfText += 'less';
-      else perfText += 'substantially less';
-      perfText += ` progress between Key Stage 2 and Key Stage 4 than pupils with similar starting points nationally. `;
-
-      if (pct != null) {
-        perfText += `This places the school ${percentileLabel(pct)} for pupil progress. `;
-      }
+    if (s.p8_prev != null) {
+      const d = decile(s.p8_prev, vals(same, 'p8_prev')); const sg = s.p8_prev > 0 ? '+' : '';
+      p += 'Progress 8 (2024) of ' + sg + n(s.p8_prev, 2) + ' (decile ' + d + ', ' + decText(d) + '). ';
+      if (s.p8_prev > 0.5) p += 'Pupils make substantially more progress than similar pupils nationally. ';
+      else if (s.p8_prev > 0.2) p += 'Pupils make more progress than similar pupils nationally. ';
+      else if (s.p8_prev > -0.2) p += 'Pupils make similar progress to national peers. ';
+      else p += 'Pupils make less progress than similar pupils nationally. ';
+      if (s.fsm_pct != null && s.fsm_pct > 30 && s.p8_prev > 0) p += 'This is particularly notable given above-average disadvantage. ';
     }
-
     if (s.basics_94 != null) {
-      const b4Values = samePhase.map(x => x.basics_94).filter(v => v != null);
-      const b4Avg = nationalAvg(b4Values);
-
-      perfText += `In the headline measure of English and Mathematics, ${s.basics_94}% of pupils achieved a standard pass (grade 4 or above) in both subjects`;
-      if (b4Avg) {
-        const vs = s.basics_94 > b4Avg + 3 ? 'above' : s.basics_94 < b4Avg - 3 ? 'below' : 'broadly in line with';
-        perfText += `, ${vs} the national average of ${fmt(b4Avg, 0)}%`;
-      }
-      perfText += '. ';
-
-      if (s.basics_95 != null) {
-        perfText += `${s.basics_95}% achieved a strong pass (grade 5 or above) in both English and Mathematics. `;
-      }
+      const d = decile(s.basics_94, vals(same, 'basics_94'));
+      p += s.basics_94 + '% achieved 4+ in English and Maths (decile ' + d + '). ';
     }
-
-    sections.push({ title: 'Key Stage 4 Performance', text: perfText });
+    if (s.basics_95 != null) {
+      const d = decile(s.basics_95, vals(same, 'basics_95'));
+      p += s.basics_95 + '% achieved the strong pass at 5+ (decile ' + d + '). ';
+    }
+    if (p) sections.push({ title: 'Educational Performance', text: p });
   }
 
-  // ─── SECTION 5: KS2 Performance ────────────────
-  if (isPrimary && (s.ks2_rwm_exp != null || s.ks2_read_avg != null)) {
-    let perfText = '';
-
+  if (isPri) {
+    let p = '';
     if (s.ks2_rwm_exp != null) {
-      const rwmValues = samePhase.map(x => x.ks2_rwm_exp).filter(v => v != null);
-      const pct = percentileOf(s.ks2_rwm_exp, rwmValues);
-      const avg = nationalAvg(rwmValues);
-      const laRWM = laSchools.map(x => x.ks2_rwm_exp).filter(v => v != null);
-      const laAvg = nationalAvg(laRWM);
-
-      perfText += `At the end of Key Stage 2, ${s.ks2_rwm_exp}% of pupils at ${s.name} met the expected standard in the combined measure of reading, writing, and mathematics. `;
-      perfText += `This places the school ${percentileLabel(pct)}`;
-      if (avg) perfText += `, where the national average stands at ${fmt(avg, 0)}%`;
-      perfText += '. ';
-
-      if (laAvg && laRWM.length > 2) {
-        const vsLA = s.ks2_rwm_exp > laAvg + 3 ? 'above' : s.ks2_rwm_exp < laAvg - 3 ? 'below' : 'in line with';
-        perfText += `Performance is ${vsLA} the ${s.la} average of ${fmt(laAvg, 0)}%. `;
-      }
+      const d = decile(s.ks2_rwm_exp, vals(same, 'ks2_rwm_exp')); const na = avg(vals(same, 'ks2_rwm_exp'));
+      p += s.ks2_rwm_exp + '% reached the expected standard in reading, writing and maths combined (decile ' + d + ', ' + decText(d) + ').';
+      if (na) p += ' National average: ' + n(na, 0) + '%.';
+      if (s.ks2_rwm_prev != null) { const ch = s.ks2_rwm_exp - s.ks2_rwm_prev; p += ' ' + (ch > 0 ? 'Up' : 'Down') + ' ' + Math.abs(ch).toFixed(0) + 'pp from 2024. '; }
+      p += ' ';
     }
-
     if (s.ks2_rwm_high != null) {
-      let highDesc = '';
-      if (s.ks2_rwm_high >= 20) highDesc = 'a strong proportion';
-      else if (s.ks2_rwm_high >= 10) highDesc = 'a reasonable proportion';
-      else highDesc = 'a smaller proportion';
-      perfText += `${highDesc} of pupils (${s.ks2_rwm_high}%) achieved the higher standard in reading, writing, and mathematics, indicating the extent to which the school challenges its most able learners. `;
+      const d = decile(s.ks2_rwm_high, vals(same, 'ks2_rwm_high'));
+      p += s.ks2_rwm_high + '% reached the higher standard (decile ' + d + '). ';
     }
-
-    if (s.ks2_read_avg != null && s.ks2_math_avg != null) {
-      perfText += `In the national assessments, pupils achieved average scaled scores of ${fmt(s.ks2_read_avg, 0)} in reading and ${fmt(s.ks2_math_avg, 0)} in mathematics, against a national expected standard of 100. `;
-
-      const readAbove = s.ks2_read_avg >= 100;
-      const mathAbove = s.ks2_math_avg >= 100;
-      if (readAbove && mathAbove) {
-        perfText += 'Both scores exceed the expected standard, suggesting that the school is performing well across the core curriculum. ';
-      } else if (!readAbove && !mathAbove) {
-        perfText += 'Both scores fall below the expected standard, which may indicate areas for development across the curriculum. ';
-      } else if (readAbove && !mathAbove) {
-        perfText += 'While reading performance is at or above the expected standard, mathematics may be an area for further development. ';
-      } else {
-        perfText += 'While mathematics performance is at or above the expected standard, reading may be an area for further development. ';
-      }
+    if (s.ks2_read_avg != null) {
+      const d = decile(s.ks2_read_avg, vals(same, 'ks2_read_avg'));
+      p += 'Average reading score: ' + n(s.ks2_read_avg, 0) + ' (decile ' + d + ', expected: 100). ';
     }
-
-    if (s.fsm_pct != null && s.fsm_pct > 25 && s.ks2_rwm_exp != null) {
-      const rwmPct = percentileOf(s.ks2_rwm_exp, samePhase.map(x => x.ks2_rwm_exp).filter(v => v != null));
-      if (rwmPct >= 50) {
-        perfText += `Given the school's higher-than-average proportion of disadvantaged pupils, these outcomes are indicative of effective teaching and strong leadership. `;
-      }
+    if (s.ks2_writ_exp != null) {
+      const d = decile(s.ks2_writ_exp, vals(same, 'ks2_writ_exp'));
+      p += 'Writing at expected: ' + s.ks2_writ_exp + '% (decile ' + d + '). ';
     }
-
-    sections.push({ title: 'Key Stage 2 Performance', text: perfText });
+    if (s.ks2_mat_exp != null) {
+      const d = decile(s.ks2_mat_exp, vals(same, 'ks2_mat_exp'));
+      p += 'Maths at expected: ' + s.ks2_mat_exp + '% (decile ' + d + '). ';
+    }
+    if (p) sections.push({ title: 'Educational Performance', text: p });
   }
 
-  // ─── SECTION 6: Summary ────────────────────────
-  let summary = '';
-
-  if (isSecondary && s.attainment8 != null && s.progress8 != null) {
-    const a8Pct = percentileOf(s.attainment8, samePhase.map(x => x.attainment8).filter(v => v != null));
-    const p8Pct = percentileOf(s.progress8, samePhase.map(x => x.progress8).filter(v => v != null));
-
-    if (a8Pct >= 60 && p8Pct >= 60) {
-      summary += `Overall, ${s.name} demonstrates strong performance across both attainment and progress measures, `;
-      summary += 'suggesting that the school is achieving well for its pupils regardless of their starting points. ';
-    } else if (a8Pct < 40 && p8Pct >= 60) {
-      summary += `While the school's overall attainment is below average, its strong Progress 8 score indicates that pupils are making more progress than might be expected given their starting points. `;
-      summary += 'This suggests effective teaching and a school that is adding significant value. ';
-    } else if (a8Pct >= 60 && p8Pct < 40) {
-      summary += `The school achieves above-average attainment, though its Progress 8 score suggests that pupils may not be making as much progress as similar students nationally. `;
-      summary += 'The relatively high attainment may partly reflect the prior attainment profile of the intake. ';
-    } else if (a8Pct < 40 && p8Pct < 40) {
-      summary += `Both attainment and progress measures fall below the national average, indicating that the school faces challenges in securing strong outcomes for its pupils. `;
-    }
+  // Disadvantaged
+  if (isSec && s.a8_disadv != null) {
+    let d = 'Disadvantaged pupils achieved an Attainment 8 of ' + n(s.a8_disadv);
+    if (s.a8_nondisadv != null) d += ', compared with ' + n(s.a8_nondisadv) + ' for non-disadvantaged peers (gap: ' + n(s.a8_nondisadv - s.a8_disadv) + '). ';
+    else d += '. ';
+    if (s.p8_disadv != null) d += 'Progress 8 for disadvantaged pupils: ' + (s.p8_disadv > 0 ? '+' : '') + n(s.p8_disadv, 2) + '. ';
+    if (s.b94_disadv != null && s.b94_nondisadv != null) d += 'Basics 4+: ' + s.b94_disadv + '% disadvantaged vs ' + s.b94_nondisadv + '% others. ';
+    sections.push({ title: 'Disadvantaged Pupils', text: d });
   }
 
-  if (isPrimary && s.ks2_rwm_exp != null) {
-    const rwmPct = percentileOf(s.ks2_rwm_exp, samePhase.map(x => x.ks2_rwm_exp).filter(v => v != null));
-    if (rwmPct >= 60) {
-      summary += `Overall, ${s.name} is performing well at Key Stage 2, with outcomes that place it above the national average. `;
-    } else if (rwmPct >= 40) {
-      summary += `Overall, ${s.name} is performing broadly in line with the national average at Key Stage 2. `;
-    } else {
-      summary += `Overall, the school's Key Stage 2 outcomes fall below the national average, suggesting potential areas for improvement. `;
-    }
+  if (isPri && s.ks2_rwm_disadv != null) {
+    let d = 'Disadvantaged pupils: ' + s.ks2_rwm_disadv + '% reached RWM expected';
+    if (s.ks2_rwm_nondisadv != null) d += ', compared with ' + s.ks2_rwm_nondisadv + '% non-disadvantaged (gap: ' + (s.ks2_rwm_nondisadv - s.ks2_rwm_disadv).toFixed(0) + 'pp). ';
+    else d += '. ';
+    sections.push({ title: 'Disadvantaged Pupils', text: d });
   }
 
-  summary += `This report is based on publicly available data from the Department for Education's Get Information About Schools (GIAS) service and the school and college performance tables. `;
-  summary += `It should be read alongside other sources of information, including the school's most recent Ofsted inspection report, when forming a view of the school's overall effectiveness.`;
+  // Ofsted
+  if (s.ofsted && s.ofsted !== 'Not inspected') {
+    let of = 'Ofsted rating: ' + s.ofsted + '. ';
+    const oc = {}; same.forEach(x => { if (x.ofsted && x.ofsted !== 'Not inspected') oc[x.ofsted] = (oc[x.ofsted] || 0) + 1; });
+    const tot = Object.values(oc).reduce((a, b) => a + b, 0);
+    if (tot) of += Math.round((oc[s.ofsted] || 0) / tot * 100) + '% of ' + s.phase.toLowerCase() + ' schools nationally hold this rating. ';
+    sections.push({ title: 'Ofsted', text: of });
+  }
 
-  if (summary) sections.push({ title: 'Summary', text: summary });
+  // Summary
+  let sum = 'In summary, ' + s.name;
+  if (isSec && s.attainment8 != null) {
+    const ad = decile(s.attainment8, vals(same, 'attainment8'));
+    const pd = s.p8_prev != null ? decile(s.p8_prev, vals(same, 'p8_prev')) : null;
+    if (ad >= 8 && pd && pd >= 8) sum += ' demonstrates strong performance across both attainment and progress';
+    else if (ad < 5 && pd && pd >= 7) sum += ' shows strong value-added despite below-average attainment, suggesting effective teaching with a challenging intake';
+    else if (ad >= 7 && pd && pd < 5) sum += ' has above-average attainment but lower progress, which may reflect intake profile rather than school effectiveness';
+    else sum += ' shows a mixed performance picture that merits further investigation';
+  }
+  if (isPri && s.ks2_rwm_exp != null) {
+    const d = decile(s.ks2_rwm_exp, vals(same, 'ks2_rwm_exp'));
+    if (d >= 8) sum += ' is performing strongly at KS2';
+    else if (d >= 5) sum += ' performs broadly in line with national averages at KS2';
+    else sum += ' has KS2 outcomes below the national average';
+  }
+  sum += '. This report uses publicly available DfE data and should be read alongside Ofsted reports and other sources.';
+  sections.push({ title: 'Summary', text: sum });
 
   return sections;
 }
 
-// ─── PDF generation ──────────────────────────────────────────
-
 export function exportSchoolPDF(school, allSchools) {
+  const s = school, all = allSchools;
   const doc = new jsPDF('p', 'mm', 'a4');
-  const W = 210, H = 297, M = 20;
-  const CW = W - M * 2;
-  let y = 0;
+  const W = 210, H = 297, M = 20, CW = W - M * 2;
+  const isSec = s.phase === 'Secondary' || s.phase === 'All-through', isPri = s.phase === 'Primary';
+  const same = all.filter(x => x.phase === s.phase);
+  const vals = (arr, k) => arr.map(x => x[k]).filter(v => v != null);
 
-  // ─── Header ─────────────────────────────────────
-  doc.setFillColor(...NAVY);
-  doc.rect(0, 0, W, 50, 'F');
-
-  doc.setTextColor(...WHITE);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Department for Education · Schools Explorer', M, 12);
-
-  doc.setFontSize(17);
-  doc.setFont('helvetica', 'bold');
-  const nameLines = wrap(doc, school.name, CW - 45);
-  doc.text(nameLines, M, 28);
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(190, 200, 215);
-  doc.text(`${school.phase || ''} · ${school.type || ''} · URN: ${school.urn || ''}`, M, 44);
-
-  // Ofsted badge
-  if (school.ofsted && school.ofsted !== 'Not inspected') {
-    const oc = getOfstedColor(school.ofsted);
-    doc.setFillColor(...oc);
-    doc.roundedRect(W - M - 38, 23, 38, 14, 2, 2, 'F');
-    doc.setTextColor(...WHITE);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.text(school.ofsted, W - M - 19, 31.5, { align: 'center' });
+  // ── Header ──────────────────────────────────
+  doc.setFillColor(...NAVY); doc.rect(0, 0, W, 50, 'F');
+  doc.setTextColor(180, 195, 215); doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
+  doc.text('School Profiles · Briefing Note', M, 11);
+  doc.setFontSize(7.5); doc.text(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), W - M, 11, { align: 'right' });
+  doc.setTextColor(...WHITE); doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+  const nl = wrap(doc, s.name, CW - 45); doc.text(nl, M, 25);
+  doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(170, 185, 210);
+  doc.text([s.la, s.phase, s.type, 'URN ' + s.urn].filter(Boolean).join(' · '), M, nl.length > 1 ? 36 : 34);
+  if (s.ofsted && s.ofsted !== 'Not inspected') {
+    const oc = ofC(s.ofsted); doc.setFillColor(...oc); doc.roundedRect(W - M - 35, 20, 35, 12, 2, 2, 'F');
+    doc.setTextColor(...WHITE); doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.text(s.ofsted, W - M - 17.5, 27.5, { align: 'center' });
   }
 
-  y = 58;
+  let y = 56;
 
-  // ─── Key facts bar ──────────────────────────────
-  doc.setFillColor(...LIGHT_GREY);
-  doc.rect(0, y - 4, W, 24, 'F');
-
+  // ── Key facts strip ─────────────────────────
+  doc.setFillColor(...LGREY); doc.rect(M, y, CW, 18, 'F');
   const facts = [];
-  if (school.la) facts.push(['Local Authority', school.la]);
-  if (school.town) facts.push(['Town', school.town]);
-  if (school.postcode) facts.push(['Postcode', school.postcode]);
-  if (school.pupils) facts.push(['Pupils', school.pupils.toLocaleString()]);
-  if (school.fsm_pct != null) facts.push(['FSM', `${school.fsm_pct}%`]);
-  if (school.gender && school.gender !== 'Mixed') facts.push(['Gender', school.gender]);
-
-  const fW = CW / Math.min(facts.length, 6);
-  facts.slice(0, 6).forEach((f, i) => {
-    const x = M + i * fW;
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...GREY);
-    doc.setFontSize(6.5);
-    doc.text(f[0].toUpperCase(), x, y + 2);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...BLACK);
-    doc.setFontSize(8.5);
-    const val = wrap(doc, f[1], fW - 4);
-    doc.text(val[0], x, y + 9);
+  if (s.pupils) facts.push(['Pupils', s.pupils.toLocaleString()]);
+  if (s.fsm_pct != null) facts.push(['FSM', s.fsm_pct + '%']);
+  if (s.gender) facts.push(['Gender', s.gender]);
+  if (s.postcode) facts.push(['Postcode', s.postcode]);
+  if (s.trust) facts.push(['Trust', s.trust.length > 25 ? s.trust.substring(0, 25) + '...' : s.trust]);
+  const fw = CW / Math.min(facts.length, 5);
+  facts.slice(0, 5).forEach((f, i) => {
+    const x = M + 5 + i * fw;
+    doc.setFontSize(5.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...GREY); doc.text(f[0].toUpperCase(), x, y + 6);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BLACK); doc.text(f[1], x, y + 12.5);
   });
+  y += 24;
 
-  y += 30;
+  // ── Headline metrics ────────────────────────
+  const metrics = [];
+  if (isSec) {
+    if (s.attainment8 != null) metrics.push({ l: 'Attainment 8', v: n(s.attainment8), d: decile(s.attainment8, vals(same, 'attainment8')), bar: s.attainment8 / 80 });
+    if (s.p8_prev != null) metrics.push({ l: 'Progress 8 (2024)', v: (s.p8_prev > 0 ? '+' : '') + n(s.p8_prev, 2), d: decile(s.p8_prev, vals(same, 'p8_prev')) });
+    if (s.basics_94 != null) metrics.push({ l: 'Eng & Ma 4+', v: s.basics_94 + '%', d: decile(s.basics_94, vals(same, 'basics_94')), bar: s.basics_94 / 100 });
+    if (s.basics_95 != null) metrics.push({ l: 'Eng & Ma 5+', v: s.basics_95 + '%', d: decile(s.basics_95, vals(same, 'basics_95')), bar: s.basics_95 / 100 });
+  }
+  if (isPri) {
+    if (s.ks2_rwm_exp != null) metrics.push({ l: 'RWM Expected', v: s.ks2_rwm_exp + '%', d: decile(s.ks2_rwm_exp, vals(same, 'ks2_rwm_exp')), bar: s.ks2_rwm_exp / 100 });
+    if (s.ks2_rwm_high != null) metrics.push({ l: 'RWM Higher', v: s.ks2_rwm_high + '%', d: decile(s.ks2_rwm_high, vals(same, 'ks2_rwm_high')), bar: s.ks2_rwm_high / 100 });
+    if (s.ks2_read_avg != null) metrics.push({ l: 'Reading', v: n(s.ks2_read_avg, 0), d: decile(s.ks2_read_avg, vals(same, 'ks2_read_avg')), bar: s.ks2_read_avg / 120 });
+    if (s.ks2_writ_exp != null) metrics.push({ l: 'Writing', v: s.ks2_writ_exp + '%', d: decile(s.ks2_writ_exp, vals(same, 'ks2_writ_exp')), bar: s.ks2_writ_exp / 100 });
+    if (s.ks2_mat_exp != null) metrics.push({ l: 'Maths', v: s.ks2_mat_exp + '%', d: decile(s.ks2_mat_exp, vals(same, 'ks2_mat_exp')), bar: s.ks2_mat_exp / 100 });
+  }
 
-  // ─── Performance metrics ────────────────────────
-  const isSecondary = school.phase === 'Secondary' || school.phase === 'All-through';
-  const isPrimary = school.phase === 'Primary';
-
-  if (isSecondary && (school.attainment8 != null || school.basics_94 != null)) {
-    const metrics = [];
-    if (school.attainment8 != null) metrics.push({ l: 'Attainment 8', v: fmt(school.attainment8), m: 80 });
-    if (school.progress8 != null) metrics.push({ l: 'Progress 8', v: (school.progress8 > 0 ? '+' : '') + fmt(school.progress8, 2), m: null });
-    if (school.basics_94 != null) metrics.push({ l: 'Eng & Maths 4+', v: `${school.basics_94}%`, m: 100 });
-    if (school.basics_95 != null) metrics.push({ l: 'Eng & Maths 5+', v: `${school.basics_95}%`, m: 100 });
-
-    const cW = CW / Math.min(metrics.length, 4);
-    metrics.slice(0, 4).forEach((m, i) => {
-      const x = M + i * cW;
-      doc.setFontSize(6.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...GREY);
-      doc.text(m.l.toUpperCase(), x, y);
-      doc.setFontSize(22); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
-      doc.text(m.v, x, y + 12);
-      if (m.m) {
-        const bW = cW - 12;
-        const fill = (parseFloat(m.v) / m.m) * bW;
-        doc.setFillColor(220, 225, 230); doc.roundedRect(x, y + 15, bW, 3, 1, 1, 'F');
-        doc.setFillColor(...BLUE); doc.roundedRect(x, y + 15, Math.max(0, fill), 3, 1, 1, 'F');
+  if (metrics.length) {
+    const mw = CW / Math.min(metrics.length, 5);
+    metrics.slice(0, 5).forEach((m, i) => {
+      const x = M + i * mw;
+      doc.setFontSize(5.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...GREY); doc.text(m.l.toUpperCase(), x, y);
+      doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY); doc.text(m.v, x, y + 10);
+      if (m.d != null) {
+        const dc = decCol(m.d);
+        doc.setFillColor(...dc); doc.roundedRect(x, y + 12.5, 14, 5, 1.5, 1.5, 'F');
+        doc.setTextColor(...WHITE); doc.setFontSize(5.5); doc.setFont('helvetica', 'bold');
+        doc.text('D' + m.d, x + 7, y + 16, { align: 'center' });
+      }
+      if (m.bar != null) {
+        const bw = mw - 12;
+        doc.setFillColor(225, 230, 240); doc.roundedRect(x, y + 19, bw, 2.5, 1, 1, 'F');
+        doc.setFillColor(...BLUE); doc.roundedRect(x, y + 19, Math.max(0, m.bar * bw), 2.5, 1, 1, 'F');
       }
     });
     y += 28;
   }
 
-  if (isPrimary && (school.ks2_rwm_exp != null || school.ks2_read_avg != null)) {
-    const metrics = [];
-    if (school.ks2_rwm_exp != null) metrics.push({ l: 'RWM Expected', v: `${school.ks2_rwm_exp}%`, m: 100 });
-    if (school.ks2_rwm_high != null) metrics.push({ l: 'RWM Higher', v: `${school.ks2_rwm_high}%`, m: 100 });
-    if (school.ks2_read_avg != null) metrics.push({ l: 'Reading Avg', v: fmt(school.ks2_read_avg, 0), m: 120 });
-    if (school.ks2_math_avg != null) metrics.push({ l: 'Maths Avg', v: fmt(school.ks2_math_avg, 0), m: 120 });
+  doc.setDrawColor(225, 230, 240); doc.line(M, y, W - M, y); y += 6;
 
-    const cW = CW / Math.min(metrics.length, 4);
-    metrics.slice(0, 4).forEach((m, i) => {
-      const x = M + i * cW;
-      doc.setFontSize(6.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...GREY);
-      doc.text(m.l.toUpperCase(), x, y);
-      doc.setFontSize(22); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
-      doc.text(m.v, x, y + 12);
-      if (m.m) {
-        const bW = cW - 12;
-        const fill = (parseFloat(m.v) / m.m) * bW;
-        doc.setFillColor(220, 225, 230); doc.roundedRect(x, y + 15, bW, 3, 1, 1, 'F');
-        doc.setFillColor(...BLUE); doc.roundedRect(x, y + 15, Math.max(0, fill), 3, 1, 1, 'F');
-      }
-    });
-    y += 28;
+  // ── Radar chart ─────────────────────────────
+  const radarData = [];
+  if (isSec) {
+    if (s.basics_94 != null) radarData.push({ label: '4+ E&M', value: s.basics_94 + '%', decile: decile(s.basics_94, vals(same, 'basics_94')) });
+    if (s.basics_95 != null) radarData.push({ label: '5+ E&M', value: s.basics_95 + '%', decile: decile(s.basics_95, vals(same, 'basics_95')) });
+    if (s.pupils != null) radarData.push({ label: 'Size', value: s.pupils.toLocaleString(), decile: decile(s.pupils, vals(same, 'pupils')) });
+    if (s.p8_prev != null) radarData.push({ label: 'P8 2024', value: (s.p8_prev > 0 ? '+' : '') + n(s.p8_prev, 2), decile: decile(s.p8_prev, vals(same, 'p8_prev')) });
+    if (s.fsm_pct != null) radarData.push({ label: 'FSM %', value: s.fsm_pct + '%', decile: decile(s.fsm_pct, vals(same, 'fsm_pct')) });
+  }
+  if (isPri) {
+    if (s.ks2_rwm_exp != null) radarData.push({ label: 'RWM Exp', value: s.ks2_rwm_exp + '%', decile: decile(s.ks2_rwm_exp, vals(same, 'ks2_rwm_exp')) });
+    if (s.ks2_rwm_high != null) radarData.push({ label: 'RWM High', value: s.ks2_rwm_high + '%', decile: decile(s.ks2_rwm_high, vals(same, 'ks2_rwm_high')) });
+    if (s.ks2_read_avg != null) radarData.push({ label: 'Reading', value: n(s.ks2_read_avg, 0), decile: decile(s.ks2_read_avg, vals(same, 'ks2_read_avg')) });
+    if (s.ks2_writ_exp != null) radarData.push({ label: 'Writing', value: s.ks2_writ_exp + '%', decile: decile(s.ks2_writ_exp, vals(same, 'ks2_writ_exp')) });
+    if (s.ks2_mat_exp != null) radarData.push({ label: 'Maths', value: s.ks2_mat_exp + '%', decile: decile(s.ks2_mat_exp, vals(same, 'ks2_mat_exp')) });
   }
 
-  // ─── Divider ────────────────────────────────────
-  doc.setDrawColor(210, 215, 220);
-  doc.line(M, y, W - M, y);
-  y += 8;
-
-  // ─── Narrative sections ─────────────────────────
-  const sections = generateNarrative(school, allSchools);
-
-  sections.forEach(section => {
-    // Check for new page
-    if (y > H - 50) {
-      doc.addPage();
-      y = M;
-    }
-
-    // Section heading
-    doc.setFillColor(...BLUE);
-    doc.rect(M, y - 1, 3, 7, 'F');
-    doc.setTextColor(...BLACK);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text(section.title, M + 7, y + 4);
-    y += 12;
-
-    // Section text
-    doc.setFontSize(9.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(30, 35, 40);
-
-    // Split by sentences for better flow
-    const lines = wrap(doc, section.text, CW);
-    lines.forEach(line => {
-      if (y > H - 25) {
-        doc.addPage();
-        y = M;
-      }
-      doc.text(line, M, y);
-      y += 4.5;
-    });
-
+  if (radarData.length >= 3) {
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
+    doc.text('National Decile Profile', W / 2, y + 2, { align: 'center' });
     y += 6;
-  });
-
-  // ─── Footer ─────────────────────────────────────
-  const addFooter = (pageDoc, pageNum, totalPages) => {
-    const fy = H - 12;
-    pageDoc.setDrawColor(210, 215, 220);
-    pageDoc.line(M, fy - 4, W - M, fy - 4);
-    pageDoc.setFontSize(7);
-    pageDoc.setFont('helvetica', 'normal');
-    pageDoc.setTextColor(...GREY);
-    pageDoc.text('Schools Explorer · Data: DfE GIAS and performance tables', M, fy);
-    pageDoc.text(`Page ${pageNum} · Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, W - M, fy, { align: 'right' });
-  };
-
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    addFooter(doc, i, totalPages);
+    drawRadar(doc, W / 2, y + 30, 25, radarData);
+    // Legend
+    y += 62;
+    doc.setFontSize(5.5); doc.setFont('helvetica', 'normal');
+    [[GREEN, 'Top (D8-10)'], [AMBER, 'Mid (D5-7)'], [RED, 'Low (D1-4)']].forEach((item, i) => {
+      const lx = W / 2 - 30 + i * 26;
+      doc.setFillColor(...item[0]); doc.circle(lx, y, 1.5, 'F');
+      doc.setTextColor(...GREY); doc.text(item[1], lx + 3, y + 1);
+    });
+    y += 8;
   }
 
-  // ─── Save ───────────────────────────────────────
-  const safeName = school.name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 40);
-  doc.save(`${safeName}_Report.pdf`);
+  doc.setDrawColor(225, 230, 240); doc.line(M, y, W - M, y); y += 6;
+
+  // ── Narrative sections ──────────────────────
+  const sections = buildNarrative(s, all);
+  sections.forEach(sec => {
+    if (y > H - 40) { doc.addPage(); y = M; }
+    doc.setFillColor(...BLUE); doc.rect(M, y - 1, 2.5, 6, 'F');
+    doc.setFontSize(9.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BLACK);
+    doc.text(sec.title, M + 6, y + 3.5); y += 10;
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 41, 59);
+    const lines = wrap(doc, sec.text, CW);
+    lines.forEach(line => { if (y > H - 20) { doc.addPage(); y = M; } doc.text(line, M, y); y += 4; });
+    y += 4;
+  });
+
+  // ── Similar Schools ──────────────────────────
+  const similar = findSimilarSchools(s, all, 10);
+  if (similar.length >= 3) {
+    if (y > H - 80) { doc.addPage(); y = M; }
+    doc.setFillColor(...BLUE); doc.rect(M, y - 1, 2.5, 6, 'F');
+    doc.setFontSize(9.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BLACK);
+    doc.text('Contextually Similar Schools', M + 6, y + 3.5); y += 8;
+    doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...GREY);
+    doc.text('Schools with similar intake profiles (FSM, SEN, EAL, size, region). Outcomes shown for comparison only.', M, y); y += 6;
+
+    // Table header
+    const cols = isSec
+      ? [{ l: 'School', w: 52 }, { l: 'Match', w: 14 }, { l: 'FSM', w: 12 }, { l: 'SEN', w: 12 }, { l: 'EAL', w: 12 }, { l: 'Pupils', w: 16 }, { l: 'A8', w: 14 }, { l: 'P8', w: 14 }, { l: '4+', w: 12 }, { l: 'Ofsted', w: 14 }]
+      : [{ l: 'School', w: 52 }, { l: 'Match', w: 14 }, { l: 'FSM', w: 12 }, { l: 'SEN', w: 12 }, { l: 'EAL', w: 12 }, { l: 'Pupils', w: 16 }, { l: 'RWM', w: 14 }, { l: 'Read', w: 14 }, { l: 'Maths', w: 12 }, { l: 'Ofsted', w: 14 }];
+    const totalW = cols.reduce((a, c) => a + c.w, 0);
+    const scale = CW / totalW;
+
+    // Header row
+    doc.setFillColor(241, 245, 249);
+    doc.rect(M, y, CW, 6, 'F');
+    let cx = M;
+    cols.forEach(c => {
+      doc.setFontSize(5.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...GREY);
+      doc.text(c.l.toUpperCase(), cx + 1, y + 4);
+      cx += c.w * scale;
+    });
+    y += 7;
+
+    // Target row
+    doc.setFillColor(240, 247, 255); doc.rect(M, y - 1, CW, 7, 'F');
+    cx = M;
+    const tVals = isSec
+      ? [s.name.substring(0, 28), '—', s.fsm_pct ?? '—', s.sen_all_pct ?? '—', s.eal_pct ?? '—', s.pupils?.toLocaleString() ?? '—', s.attainment8 != null ? n(s.attainment8) : '—', s.p8_prev != null ? (s.p8_prev > 0 ? '+' : '') + n(s.p8_prev, 2) : '—', s.basics_94 != null ? s.basics_94 + '%' : '—', s.ofsted || '—']
+      : [s.name.substring(0, 28), '—', s.fsm_pct ?? '—', s.sen_all_pct ?? '—', s.eal_pct ?? '—', s.pupils?.toLocaleString() ?? '—', s.ks2_rwm_exp != null ? s.ks2_rwm_exp + '%' : '—', s.ks2_read_avg != null ? n(s.ks2_read_avg, 0) : '—', s.ks2_mat_exp != null ? s.ks2_mat_exp + '%' : '—', s.ofsted || '—'];
+    tVals.forEach((v, i) => {
+      doc.setFontSize(6); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BLUE);
+      doc.text(String(v), cx + 1, y + 3.5);
+      cx += cols[i].w * scale;
+    });
+    y += 8;
+
+    // Result rows
+    similar.forEach((r, ri) => {
+      if (y > H - 20) { doc.addPage(); y = M; }
+      const rs = r.school;
+      if (ri % 2 === 0) { doc.setFillColor(248, 250, 252); doc.rect(M, y - 1, CW, 7, 'F'); }
+      cx = M;
+      const rVals = isSec
+        ? [rs.name.substring(0, 28), r.similarity + '%', rs.fsm_pct ?? '—', rs.sen_all_pct ?? '—', rs.eal_pct ?? '—', rs.pupils?.toLocaleString() ?? '—', rs.attainment8 != null ? n(rs.attainment8) : '—', rs.p8_prev != null ? (rs.p8_prev > 0 ? '+' : '') + n(rs.p8_prev, 2) : '—', rs.basics_94 != null ? rs.basics_94 + '%' : '—', rs.ofsted || '—']
+        : [rs.name.substring(0, 28), r.similarity + '%', rs.fsm_pct ?? '—', rs.sen_all_pct ?? '—', rs.eal_pct ?? '—', rs.pupils?.toLocaleString() ?? '—', rs.ks2_rwm_exp != null ? rs.ks2_rwm_exp + '%' : '—', rs.ks2_read_avg != null ? n(rs.ks2_read_avg, 0) : '—', rs.ks2_mat_exp != null ? rs.ks2_mat_exp + '%' : '—', rs.ofsted || '—'];
+      rVals.forEach((v, i) => {
+        const isOutcome = isSec ? i >= 6 && i <= 8 : i >= 6 && i <= 8;
+        let col = BLACK;
+        if (isOutcome && i === 6) { // A8 or RWM
+          const tv = isSec ? s.attainment8 : s.ks2_rwm_exp;
+          const sv = parseFloat(v);
+          if (tv != null && !isNaN(sv)) col = sv > tv + 3 ? GREEN : sv < tv - 3 ? RED : BLACK;
+        }
+        if (isOutcome && i === 7) { // P8 or Read
+          const tv = isSec ? s.p8_prev : s.ks2_read_avg;
+          const sv = parseFloat(v);
+          if (tv != null && !isNaN(sv)) col = isSec ? (sv > tv + 0.1 ? GREEN : sv < tv - 0.1 ? RED : BLACK) : (sv > tv + 2 ? GREEN : sv < tv - 2 ? RED : BLACK);
+        }
+        doc.setFontSize(6); doc.setFont('helvetica', i === 0 ? 'bold' : 'normal'); doc.setTextColor(...col);
+        doc.text(String(v), cx + 1, y + 3.5);
+        cx += cols[i].w * scale;
+      });
+      y += 7;
+    });
+    y += 4;
+
+    // Methodology note
+    if (y > H - 20) { doc.addPage(); y = M; }
+    doc.setFontSize(5.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...GREY);
+    const methLines = wrap(doc, 'Methodology: Weighted contextual similarity — FSM (25%), EAL (15%), SEN K (13%), EHCP (12%), size (10%), stability (10%), region (15%). Same phase and gender. Outcomes do not influence rankings.', CW);
+    methLines.forEach(line => { doc.text(line, M, y); y += 3; });
+    y += 4;
+  }
+
+  // ── Footer ──────────────────────────────────
+  const tp = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= tp; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(225, 230, 240); doc.line(M, H - 14, W - M, H - 14);
+    doc.setFontSize(6); doc.setFont('helvetica', 'normal'); doc.setTextColor(...GREY);
+    doc.text('School Profiles · Data: DfE GIAS and performance tables 2024/25', M, H - 10);
+    doc.text('Page ' + i + ' of ' + tp, W - M, H - 10, { align: 'right' });
+  }
+
+  const safe = s.name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 40);
+  doc.save(safe + '_Briefing.pdf');
 }
