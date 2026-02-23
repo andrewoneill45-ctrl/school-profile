@@ -2,137 +2,87 @@ import React, { useState, useRef, useEffect } from 'react';
 import './LandingScreen.css';
 
 const SUGGESTIONS = [
-  'Outstanding secondary schools in Darlington',
+  'Outstanding secondary schools in Sunderland',
   'Primary schools near W10',
-  'Schools with Attainment 8 above 60',
-  'Secondary schools in North East',
-  'All schools in Hackney',
-  'Good schools with more than 1000 pupils',
+  'Schools with Attainment 8 above 55',
+  'Catholic schools in Manchester',
+  'Harris Federation schools',
+  'Secondary schools in North East with positive Progress 8',
 ];
 
 const LandingScreen = ({ onSearch, onExplore, schoolCount }) => {
   const [query, setQuery] = useState('');
-  const [currentSuggestion, setCurrentSuggestion] = useState(0);
-  const [isTyping, setIsTyping] = useState(false);
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  const [typing, setTyping] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentSuggestion(prev => (prev + 1) % SUGGESTIONS.length);
-    }, 3500);
-    return () => clearInterval(interval);
+    const t = setInterval(() => setPlaceholderIdx(i => (i + 1) % SUGGESTIONS.length), 3200);
+    return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => inputRef.current?.focus(), 600);
-    return () => clearTimeout(timer);
+    setTimeout(() => inputRef.current?.focus(), 500);
   }, []);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (query.trim()) onSearch(query.trim());
-  };
-
-  const handleSuggestionClick = (s) => {
-    setQuery(s);
-    onSearch(s);
-  };
+  const submit = (e) => { e.preventDefault(); if (query.trim()) onSearch(query.trim()); };
+  const quickSearch = (s) => { setQuery(s); onSearch(s); };
 
   return (
     <div className="landing">
-      {/* GOV.UK-style top bar */}
-      <div className="landing-topbar">
-        <div className="landing-topbar-inner">
-          <svg className="crown-icon" width="28" height="24" viewBox="0 0 36 32" fill="none">
-            <path d="M18 0L22 12L36 8L30 22H6L0 8L14 12L18 0Z" fill="white" opacity="0.9"/>
-            <rect x="5" y="24" width="26" height="4" rx="1" fill="white" opacity="0.9"/>
-          </svg>
-          <span className="topbar-service">Department for Education</span>
-        </div>
-      </div>
+      <div className="landing-inner">
+        <h1 className="landing-h1">School Profiles</h1>
+        <p className="landing-subtitle">England</p>
 
-      {/* Blue header band — DfE style */}
-      <div className="landing-header">
-        <div className="landing-header-inner">
-          <span className="landing-phase-tag">Beta</span>
-          <span className="landing-phase-text">This is a new service. Help us improve it.</span>
-        </div>
-      </div>
+        <p className="landing-p">
+          Search {schoolCount ? schoolCount.toLocaleString() : '25,000+'} schools by name, town, postcode, local authority, or ask a question like
+          "outstanding secondaries in Darlington with high attainment".
+        </p>
 
-      {/* Main content */}
-      <div className="landing-body">
-        <div className="landing-content">
-          <h1 className="landing-title">
-            Search for schools<br />in England
-          </h1>
-
-          <p className="landing-subtitle">
-            Find and compare {schoolCount ? schoolCount.toLocaleString() : '25,000+'} schools 
-            by name, location, performance data, or Ofsted rating.
-          </p>
-
-          {/* Search */}
-          <form className="landing-search" onSubmit={handleSubmit}>
-            <label className="search-label" htmlFor="school-search">
-              Search by school name, town, postcode, or try a natural language query
-            </label>
-            <div className="search-row">
-              <input
-                ref={inputRef}
-                id="school-search"
-                type="text"
-                className="search-input"
-                value={query}
-                onChange={(e) => { setQuery(e.target.value); setIsTyping(true); }}
-                onBlur={() => setIsTyping(false)}
-                placeholder={isTyping ? '' : SUGGESTIONS[currentSuggestion]}
-              />
-              <button type="submit" className="search-button" disabled={!query.trim()}>
-                Search
-              </button>
-            </div>
-          </form>
-
-          {/* Suggestions */}
-          <div className="landing-suggestions">
-            <span className="suggestions-label">Example searches:</span>
-            <div className="suggestions-list">
-              {SUGGESTIONS.slice(0, 4).map((s, i) => (
-                <button key={i} className="suggestion-link" onClick={() => handleSuggestionClick(s)}>
-                  {s}
-                </button>
-              ))}
-            </div>
+        <form className="landing-form" onSubmit={submit}>
+          <div className="lf-row">
+            <svg className="lf-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input
+              ref={inputRef}
+              className="lf-input"
+              value={query}
+              onChange={e => { setQuery(e.target.value); setTyping(true); }}
+              onBlur={() => setTyping(false)}
+              placeholder={typing ? '' : SUGGESTIONS[placeholderIdx]}
+            />
+            {query && <button type="button" className="lf-clear" onClick={() => setQuery('')}>✕</button>}
+            <button type="submit" className="lf-submit" disabled={!query.trim()}>Search</button>
           </div>
+        </form>
 
-          {/* Quick filters — styled as GOV.UK-like cards */}
-          <div className="landing-cards">
-            <button className="landing-card" onClick={() => onSearch('primary')}>
-              <span className="card-stripe" style={{ background: 'var(--phase-primary)' }} />
-              <span className="card-label">Primary schools</span>
-              <span className="card-arrow">→</span>
-            </button>
-            <button className="landing-card" onClick={() => onSearch('secondary')}>
-              <span className="card-stripe" style={{ background: 'var(--phase-secondary)' }} />
-              <span className="card-label">Secondary schools</span>
-              <span className="card-arrow">→</span>
-            </button>
-            <button className="landing-card" onClick={() => onSearch('outstanding')}>
-              <span className="card-stripe" style={{ background: 'var(--ofsted-outstanding)' }} />
-              <span className="card-label">Outstanding schools</span>
-              <span className="card-arrow">→</span>
-            </button>
-            <button className="landing-card" onClick={() => onSearch('special')}>
-              <span className="card-stripe" style={{ background: 'var(--phase-special)' }} />
-              <span className="card-label">Special schools</span>
-              <span className="card-arrow">→</span>
-            </button>
-          </div>
+        <div className="landing-tries">
+          <span className="tries-label">Try:</span>
+          {SUGGESTIONS.slice(0, 4).map((s, i) => (
+            <button key={i} className="try-link" onClick={() => quickSearch(s)}>{s}</button>
+          ))}
+        </div>
 
-          {/* Explore link */}
-          <button className="landing-explore" onClick={onExplore}>
-            Or explore all schools on the map
+        <div className="landing-filters">
+          <button className="lf-pill" onClick={() => quickSearch('primary')}>
+            <span className="pill-dot" style={{ background: '#2672c0' }}/>Primary
           </button>
+          <button className="lf-pill" onClick={() => quickSearch('secondary')}>
+            <span className="pill-dot" style={{ background: '#b91c4a' }}/>Secondary
+          </button>
+          <button className="lf-pill" onClick={() => quickSearch('outstanding')}>
+            <span className="pill-dot" style={{ background: '#0d7a42' }}/>Outstanding
+          </button>
+          <button className="lf-pill" onClick={() => quickSearch('special')}>
+            <span className="pill-dot" style={{ background: '#5b3fa0' }}/>Special
+          </button>
+        </div>
+
+        <button className="landing-map-link" onClick={onExplore}>
+          Or explore the full map →
+        </button>
+
+        <div className="landing-footer">
+          <span>Data: DfE Get Information About Schools · KS4 and KS2 performance tables 2024/25</span>
         </div>
       </div>
     </div>

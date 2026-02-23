@@ -1,0 +1,158 @@
+/* ─── Full-screen overlay ──────────────── */
+.simf-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: #ffffff;
+  overflow-y: auto;
+  animation: simfFadeIn 0.2s ease;
+}
+@keyframes simfFadeIn { from { opacity: 0; } }
+
+.simf-full {
+  max-width: 1200px; margin: 0 auto;
+  padding: 32px 40px 60px;
+  font-family: 'Source Sans 3', -apple-system, sans-serif;
+}
+
+.simf-close {
+  position: fixed; top: 16px; right: 24px; z-index: 610;
+  background: #0f172a; color: white; border: none;
+  border-radius: 10px; padding: 10px 20px;
+  font-family: inherit; font-size: 0.85rem; font-weight: 700;
+  cursor: pointer; transition: background 120ms;
+  display: flex; align-items: center; gap: 6px;
+}
+.simf-close:hover { background: #334155; }
+
+/* ─── Header ───────────────────────────── */
+.simf-header { margin-bottom: 28px; }
+.simf-title { font-size: 1.5rem; font-weight: 800; color: #0f172a; margin: 0 0 6px; }
+.simf-subtitle { font-size: 0.88rem; color: #64748b; line-height: 1.5; margin: 0 0 14px; max-width: 800px; }
+.simf-ctx-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.simf-ctx-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 14px; background: #f1f5f9; border-radius: 99px; font-size: 0.78rem;
+}
+.simf-ctx-k { color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+.simf-ctx-v { color: #0f172a; font-weight: 700; }
+
+/* ─── Bar charts ───────────────────────── */
+.simf-charts { position: relative; margin-bottom: 36px; }
+.simf-chart-block { margin-bottom: 28px; }
+.simf-chart-title {
+  font-size: 0.92rem; font-weight: 700; color: #334155;
+  margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px solid #f1f5f9;
+}
+.simf-bar-chart { display: flex; flex-direction: column; gap: 4px; }
+.simf-bar-row {
+  display: flex; align-items: center; height: 34px; gap: 0;
+  transition: background 80ms;
+}
+.simf-bar-hover:hover { background: #f8fafc; border-radius: 6px; cursor: pointer; }
+.simf-bar-target { background: #f0f7ff; border-radius: 6px; }
+.simf-bar-label {
+  width: 260px; min-width: 260px; padding-right: 12px;
+  font-size: 0.78rem; color: #334155; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: flex; align-items: center; gap: 4px;
+}
+.simf-star { color: #1d5a9e; font-size: 0.85rem; }
+.simf-bar-match {
+  font-size: 0.62rem; font-weight: 700; color: #94a3b8;
+  margin-left: auto; flex-shrink: 0;
+}
+.simf-bar-track {
+  flex: 1; height: 100%; position: relative;
+  background: #f8fafc; border-radius: 4px; overflow: visible;
+}
+.simf-bar-fill {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  transition: width 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.simf-bar-val {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+}
+.simf-bar-zero {
+  position: absolute; top: 0; bottom: 0; width: 1px;
+  background: #cbd5e1;
+}
+.simf-bar-na { font-size: 0.72rem; color: #cbd5e1; padding: 0 8px; }
+
+/* ─── Hover card ───────────────────────── */
+.simf-hover {
+  position: absolute; z-index: 20; pointer-events: none;
+  background: white; border-radius: 14px; padding: 16px 18px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15); width: 310px;
+  border: 1px solid #e2e8f0;
+}
+.simf-hover-name { font-size: 0.92rem; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
+.simf-hover-meta { font-size: 0.72rem; color: #94a3b8; margin-bottom: 8px; }
+.simf-hover-match { font-size: 0.82rem; color: #1d5a9e; margin-bottom: 10px; }
+.simf-hover-reason { font-size: 0.72rem; color: #64748b; font-style: italic; margin-left: 6px; }
+.simf-hover-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 10px;
+  margin-bottom: 8px;
+}
+.simf-hs { display: flex; flex-direction: column; }
+.simf-hs-k { font-size: 0.6rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; }
+.simf-hs-v { font-size: 0.82rem; font-weight: 700; color: #334155; }
+.simf-hs-eq { font-size: 0.68rem; color: #0d7a42; font-weight: 700; }
+.simf-hover-ofsted {
+  display: inline-block; padding: 2px 10px; border-radius: 99px;
+  color: white; font-size: 0.68rem; font-weight: 700; margin-bottom: 6px;
+}
+.simf-hover-click { font-size: 0.7rem; color: #1d5a9e; font-weight: 600; margin-top: 4px; }
+
+/* ─── Table ────────────────────────────── */
+.simf-table-section { margin-bottom: 24px; }
+.simf-section-title { font-size: 1.1rem; font-weight: 700; color: #0f172a; margin: 0 0 12px; }
+.simf-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; }
+.simf-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 0.78rem; white-space: nowrap;
+}
+.simf-table th {
+  padding: 10px 12px; background: #f8fafc;
+  font-weight: 700; color: #64748b; text-align: left;
+  border-bottom: 1px solid #e2e8f0; text-transform: uppercase;
+  font-size: 0.68rem; letter-spacing: 0.04em;
+}
+.simf-th-name { min-width: 200px; }
+.simf-table td {
+  padding: 10px 12px; border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+.simf-table-target { background: #f0f7ff; }
+.simf-table-target td { font-weight: 700; color: #1d5a9e; border-bottom: 2px solid #1d5a9e; }
+.simf-table-row { cursor: pointer; transition: background 80ms; }
+.simf-table-row:hover { background: #f8fafc; }
+.simf-td-rank { color: #94a3b8; font-weight: 800; text-align: center; width: 30px; }
+.simf-td-name {
+  max-width: 250px; overflow: hidden; text-overflow: ellipsis;
+  font-weight: 600;
+}
+.simf-tbl-match {
+  display: inline-block; background: #1d5a9e; color: white;
+  padding: 2px 8px; border-radius: 99px; font-size: 0.68rem; font-weight: 700;
+}
+.simf-tbl-ofsted {
+  display: inline-block; padding: 2px 8px; border-radius: 99px;
+  color: white; font-size: 0.62rem; font-weight: 700;
+}
+
+/* ─── Methodology ──────────────────────── */
+.simf-method {
+  padding: 16px 20px; background: #f8fafc; border-radius: 12px;
+  font-size: 0.75rem; color: #94a3b8; line-height: 1.6;
+}
+.simf-method strong { color: #64748b; }
+
+/* ─── Mobile ───────────────────────────── */
+@media (max-width: 768px) {
+  .simf-full { padding: 20px 16px 40px; }
+  .simf-title { font-size: 1.2rem; }
+  .simf-bar-label { width: 140px; min-width: 140px; font-size: 0.68rem; }
+  .simf-close { top: 10px; right: 12px; padding: 8px 14px; }
+  .simf-table { font-size: 0.68rem; }
+  .simf-table th, .simf-table td { padding: 8px 8px; }
+}
