@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { aiAnalytics, hasApiKey } from '../utils/ai';
+import { aiAnalytics, aiPlaceBriefing, aiTrustAnalysis, buildSchoolContext, hasApiKey } from '../utils/ai';
 import './StatsPanel.css';
 
 /* ─── Helpers ──────────────────────────── */
@@ -76,21 +76,14 @@ const StatsPanel = ({ filtered, allSchools, onClose, activeFilters }) => {
   }, [filtered, allSchools]);
 
   // Build AI context string for the filtered set
-  const aiContext = useMemo(() => {
-    const lines = [];
-    lines.push(`Filtered set: ${s.n} schools.`);
-    if (s.a8.length) lines.push(`KS4: ${s.a8.length} schools. Avg A8: ${avg(s.a8)?.toFixed(1)}, Med A8: ${med(s.a8)?.toFixed(1)}, P10: ${p10(s.a8)?.toFixed(1)}, P90: ${p90(s.a8)?.toFixed(1)}. Avg P8: ${avg(s.p8)?.toFixed(2)}. Avg 4+: ${avg(s.b94)?.toFixed(0)}%. Avg 5+: ${avg(s.b95)?.toFixed(0)}%.`);
-    if (s.rwm.length) lines.push(`KS2: ${s.rwm.length} schools. Avg RWM: ${avg(s.rwm)?.toFixed(0)}%, Avg Read: ${avg(s.read)?.toFixed(0)}, Avg Maths: ${avg(s.mat)?.toFixed(0)}%.`);
-    if (s.fsm.length) lines.push(`Context: Avg FSM: ${avg(s.fsm)?.toFixed(1)}%, Avg SEN: ${avg(s.sen)?.toFixed(1)}%, Avg EAL: ${avg(s.eal)?.toFixed(1)}%.`);
-    lines.push(`Phase mix: ${Object.entries(s.phases).map(([k,v]) => `${k}: ${v}`).join(', ')}.`);
-    lines.push(`Ofsted: ${Object.entries(s.ofsted).map(([k,v]) => `${k}: ${v}`).join(', ')}.`);
-    if (s.a8All.length) lines.push(`NATIONAL (all schools): Avg A8: ${avg(s.a8All)?.toFixed(1)}, Avg P8: ${avg(s.p8All)?.toFixed(2)}, Avg 4+: ${avg(s.b94All)?.toFixed(0)}%, Avg RWM: ${avg(s.rwmAll)?.toFixed(0)}%, Avg FSM: ${avg(s.fsmAll)?.toFixed(1)}%.`);
-    // Top 10 LAs
-    if (s.laBreakdown.length) {
-      lines.push(`Top LAs in set: ${s.laBreakdown.slice(0, 15).map(la => `${la.la} (${la.count} schools, avgA8: ${la.avgA8?.toFixed(1) ?? 'n/a'}, avgFSM: ${la.avgFSM?.toFixed(0) ?? 'n/a'}%)`).join('; ')}.`);
-    }
-    return lines.join('\n');
-  }, [s]);
+  const aiContext = useMemo(() => buildSchoolContext(filtered, allSchools), [filtered, allSchools]);
+
+  // Trust list for trust analysis
+  const trustList = useMemo(() => {
+    const trustMap = {};
+    filtered.forEach(s => { if (s.trust) trustMap[s.trust] = (trustMap[s.trust] || 0) + 1; });
+    return Object.entries(trustMap).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([name, count]) => ({ name, count }));
+  }, [filtered]);
 
   const handleAiSubmit = async (e) => {
     e.preventDefault();
@@ -113,12 +106,45 @@ const StatsPanel = ({ filtered, allSchools, onClose, activeFilters }) => {
     if (aiScrollRef.current) aiScrollRef.current.scrollTop = aiScrollRef.current.scrollHeight;
   }, [aiMessages, aiLoading]);
 
+  // Place briefing state
+  const [placeBriefing, setPlaceBriefing] = useState('');
+  const [placeLoading, setPlaceLoading] = useState(false);
+  const [selectedLA, setSelectedLA] = useState('');
+  // Trust analysis state
+  const [trustBriefing, setTrustBriefing] = useState('');
+  const [trustLoading, setTrustLoading] = useState(false);
+  const [selectedTrust, setSelectedTrust] = useState('');
+
+  const handlePlaceBriefing = async (la) => {
+    setSelectedLA(la); setPlaceBriefing(''); setPlaceLoading(true);
+    try {
+      const laSchools = filtered.filter(s => s.la === la);
+      const ctx = buildSchoolContext(laSchools, allSchools);
+      const result = await aiPlaceBriefing(la, ctx);
+      setPlaceBriefing(result);
+    } catch (err) { setPlaceBriefing('Error: ' + err.message); }
+    setPlaceLoading(false);
+  };
+
+  const handleTrustAnalysis = async (trust) => {
+    setSelectedTrust(trust); setTrustBriefing(''); setTrustLoading(true);
+    try {
+      const trustSchools = allSchools.filter(s => s.trust === trust);
+      const ctx = buildSchoolContext(trustSchools, allSchools);
+      const result = await aiTrustAnalysis(trust, ctx);
+      setTrustBriefing(result);
+    } catch (err) { setTrustBriefing('Error: ' + err.message); }
+    setTrustLoading(false);
+  };
+
   const TABS = [
     { id: 'overview', label: 'Overview' },
     { id: 'performance', label: 'Performance' },
     { id: 'context', label: 'Context' },
     { id: 'areas', label: 'By Area' },
     { id: 'ai', label: '✦ AI' },
+    { id: 'place', label: '✦ Place' },
+    { id: 'trust', label: '✦ Trust' },
   ];
 
   return (
@@ -321,6 +347,58 @@ const StatsPanel = ({ filtered, allSchools, onClose, activeFilters }) => {
             </form>
           </div>
         )}
+
+        {/* ─── Place Briefing Tab ─── */}
+        {tab === 'place' && (
+          <div className="sp2-body">
+            <div className="sp2-ai-header">
+              <div className="sp2-ai-badge">✦ Place Briefing</div>
+              <p className="sp2-ai-desc">Select a local authority to generate an AI-powered analytical briefing covering performance, disadvantage, and policy implications.</p>
+            </div>
+            <div className="sp2-place-grid">
+              {s.laBreakdown.slice(0, 40).map(la => (
+                <button key={la.la} className={`sp2-place-btn ${selectedLA === la.la ? 'sp2-place-active' : ''}`} onClick={() => handlePlaceBriefing(la.la)}>
+                  <span className="sp2-place-name">{la.la}</span>
+                  <span className="sp2-place-count">{la.count} schools</span>
+                </button>
+              ))}
+            </div>
+            {placeLoading && <div className="sp2-ai-loading-block">Generating briefing for {selectedLA}…</div>}
+            {placeBriefing && (
+              <div className="sp2-briefing">
+                <h3 className="sp2-briefing-title">{selectedLA} — Place Briefing</h3>
+                <div className="sp2-briefing-text">{stripMd(placeBriefing)}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─── Trust Analysis Tab ─── */}
+        {tab === 'trust' && (
+          <div className="sp2-body">
+            <div className="sp2-ai-header">
+              <div className="sp2-ai-badge">✦ Trust Analysis</div>
+              <p className="sp2-ai-desc">Select a multi-academy trust to generate a comprehensive analytical briefing. Analysis covers all trust schools nationally, not just the filtered set.</p>
+            </div>
+            {trustList.length === 0 && <p style={{ color: '#94a3b8' }}>No trusts in the current filtered set.</p>}
+            <div className="sp2-place-grid">
+              {trustList.map(t => (
+                <button key={t.name} className={`sp2-place-btn ${selectedTrust === t.name ? 'sp2-place-active' : ''}`} onClick={() => handleTrustAnalysis(t.name)}>
+                  <span className="sp2-place-name">{t.name.length > 35 ? t.name.substring(0, 35) + '…' : t.name}</span>
+                  <span className="sp2-place-count">{t.count} in set</span>
+                </button>
+              ))}
+            </div>
+            {trustLoading && <div className="sp2-ai-loading-block">Generating analysis for {selectedTrust}…</div>}
+            {trustBriefing && (
+              <div className="sp2-briefing">
+                <h3 className="sp2-briefing-title">{selectedTrust} — Trust Analysis</h3>
+                <div className="sp2-briefing-text">{stripMd(trustBriefing)}</div>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );

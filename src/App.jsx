@@ -8,6 +8,7 @@ import ComparisonTray from './components/ComparisonTray';
 import ComparePanel from './components/ComparePanel';
 import SimilarSchoolsPanel from './components/SimilarSchoolsPanel';
 import StatsPanel from './components/StatsPanel';
+import RiseMode from './components/RiseMode';
 import { useLogout } from './components/LoginGate';
 import { parseSearchQuery, applyFilters } from './utils/searchParser';
 
@@ -129,6 +130,7 @@ const App = () => {
   const [similarTarget, setSimilarTarget] = useState(null);
   const [mapStyle, setMapStyle] = useState('light');
   const [showStats, setShowStats] = useState(false);
+  const [showRise, setShowRise] = useState(false);
 
   useEffect(() => {
     fetch('/schools.json')
@@ -298,12 +300,22 @@ const App = () => {
       {!showLanding && (
         <button className="stats-toggle" onClick={() => setShowStats(v => !v)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="18" y="3" width="4" height="18" rx="1" /><rect x="10" y="8" width="4" height="13" rx="1" /><rect x="2" y="13" width="4" height="8" rx="1" /></svg>
-          {showStats ? 'Hide stats' : 'Stats'}
+          Stats
+        </button>
+      )}
+      {!showLanding && (
+        <button className="rise-toggle" onClick={() => setShowRise(true)}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="7.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="7.5" r="2.5"/><line x1="10" y1="15" x2="14" y2="9"/></svg>
+          RISE
         </button>
       )}
 
       {!showLanding && showStats && (
         <StatsPanel filtered={filtered} allSchools={schoolsData} activeFilters={activeFilters} onClose={() => setShowStats(false)} />
+      )}
+
+      {!showLanding && showRise && (
+        <RiseMode schools={filtered} allSchools={schoolsData} onSelectSchool={(s) => { setShowRise(false); setSelectedSchool(s); }} onClose={() => setShowRise(false)} />
       )}
 
       {!showLanding && (

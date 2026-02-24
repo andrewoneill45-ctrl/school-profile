@@ -190,6 +190,35 @@
 .sp2-ai-send:hover { background: #164b85; }
 .sp2-ai-send:disabled { background: #cbd5e1; cursor: not-allowed; }
 
+/* ─── Place / Trust grids ──────────────── */
+.sp2-place-grid {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;
+}
+.sp2-place-btn {
+  display: flex; flex-direction: column; padding: 10px 16px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  font-family: inherit; cursor: pointer; transition: all 80ms; text-align: left;
+}
+.sp2-place-btn:hover { background: #f0f7ff; border-color: #1d5a9e; }
+.sp2-place-active { background: #1d5a9e; border-color: #1d5a9e; }
+.sp2-place-active .sp2-place-name { color: white; }
+.sp2-place-active .sp2-place-count { color: rgba(255,255,255,0.7); }
+.sp2-place-name { font-size: 0.82rem; font-weight: 600; color: #334155; }
+.sp2-place-count { font-size: 0.68rem; color: #94a3b8; }
+
+.sp2-ai-loading-block {
+  padding: 20px; text-align: center; color: #94a3b8;
+  font-style: italic; font-size: 0.88rem;
+}
+.sp2-briefing { margin-top: 16px; }
+.sp2-briefing-title {
+  font-size: 1.1rem; font-weight: 700; color: #0f172a; margin: 0 0 12px;
+}
+.sp2-briefing-text {
+  font-size: 0.88rem; line-height: 1.7; color: #334155;
+  white-space: pre-wrap;
+}
+
 /* ─── Mobile ───────────────────────────── */
 @media (max-width: 768px) {
   .sp2-panel { padding: 20px 16px 40px; }
