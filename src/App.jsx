@@ -197,6 +197,20 @@ const App = () => {
     }
   }, [schoolsData]);
 
+  const handleAiSearch = useCallback((q, filters) => {
+    setActiveFilters(filters); setSearchQuery(q); setShowLanding(false); setSelectedSchool(null); setHoveredSchool(null);
+    if (filters) {
+      const results = applyFilters(schoolsData, filters);
+      if (results.length > 0 && results.length < 500) {
+        const lats = results.map(s => s.latitude).filter(Boolean), lngs = results.map(s => s.longitude).filter(Boolean);
+        if (lats.length) {
+          const bounds = [[Math.min(...lngs) - 0.05, Math.min(...lats) - 0.05], [Math.max(...lngs) + 0.05, Math.max(...lats) + 0.05]];
+          setTimeout(() => mapRef.current?.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 800 }), 100);
+        }
+      }
+    }
+  }, [schoolsData]);
+
   const handleClearFilters = useCallback(() => { setActiveFilters(null); setSearchQuery(''); setSelectedSchool(null); setHoveredSchool(null); mapRef.current?.flyTo({ center: [-1.5, 52.8], zoom: 6, duration: 800 }); }, []);
 
   const handleMapClick = useCallback((event) => {
@@ -273,7 +287,7 @@ const App = () => {
       )}
 
       {showLanding && <LandingScreen onSearch={handleSearch} onExplore={() => setShowLanding(false)} schoolCount={schoolsData.length} />}
-      {!showLanding && <SearchBar schools={schoolsData} query={searchQuery} onQueryChange={setSearchQuery} onSearch={handleSearch} resultCount={activeFilters ? filtered.length : null} activeFilters={activeFilters} onClearFilters={handleClearFilters} />}
+      {!showLanding && <SearchBar schools={schoolsData} query={searchQuery} onQueryChange={setSearchQuery} onSearch={handleSearch} onAiSearch={handleAiSearch} resultCount={activeFilters ? filtered.length : null} activeFilters={activeFilters} onClearFilters={handleClearFilters} />}
       {selectedSchool && <SchoolProfile school={{...selectedSchool, onFindSimilar: (s) => { setSimilarTarget(s); setSelectedSchool(null); }}} allSchools={schoolsData} onClose={() => setSelectedSchool(null)} onCompare={handleAddCompare} />}
       {similarTarget && <SimilarSchoolsPanel school={similarTarget} allSchools={schoolsData} onClose={() => setSimilarTarget(null)} onSelectSchool={(s) => { setSimilarTarget(null); setSelectedSchool(s); }} />}
       {!showLanding && !showCompare && <ComparisonTray schools={compareList} onRemove={(urn) => setCompareList(prev => prev.filter(s => s.urn !== urn))} onCompare={() => setShowCompare(true)} />}

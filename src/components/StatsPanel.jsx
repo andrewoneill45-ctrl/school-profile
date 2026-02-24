@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { aiAnalytics, hasApiKey } from '../utils/ai';
 import './StatsPanel.css';
 
 /* ─── Helpers ──────────────────────────── */
@@ -100,21 +101,7 @@ const StatsPanel = ({ filtered, allSchools, onClose, activeFilters }) => {
     setAiLoading(true);
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: `You are an expert education data analyst working for the Department for Education in England. You have access to a filtered set of school performance data. Answer questions concisely and precisely using the data provided. Use UK English. Format numbers clearly. If you can't answer from the data, say so. Here is the data for the currently filtered set of schools:\n\n${aiContext}`,
-          messages: [
-            ...aiMessages.map(m => ({ role: m.role, content: m.content })),
-            { role: 'user', content: q }
-          ],
-        }),
-      });
-      const data = await response.json();
-      const reply = data.content?.map(c => c.text || '').join('') || 'Sorry, I couldn\'t generate a response.';
+      const reply = await aiAnalytics(q, aiContext, aiMessages);
       setAiMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     } catch (err) {
       setAiMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + err.message }]);
