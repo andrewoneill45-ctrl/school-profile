@@ -295,7 +295,7 @@ const StatsPanel = ({ filtered, allSchools, onClose, activeFilters }) => {
               {aiMessages.map((m, i) => (
                 <div key={i} className={`sp2-ai-msg sp2-ai-${m.role}`}>
                   {m.role === 'assistant' && <div className="sp2-ai-avatar">✦</div>}
-                  <div className="sp2-ai-content">{m.content}</div>
+                  <div className="sp2-ai-content">{m.role === 'assistant' ? stripMd(m.content) : m.content}</div>
                 </div>
               ))}
               {aiLoading && (
@@ -447,6 +447,23 @@ const StatStrip = ({ data, national, label, dp = 1, suffix = '', prefix }) => {
 function colorVsNat(val, nat, threshold) {
   if (val == null || nat == null) return '#334155';
   return val > nat + threshold ? '#0d7a42' : val < nat - threshold ? '#cc3333' : '#334155';
+}
+
+function stripMd(text) {
+  return text
+    .replace(/^#{1,6}\s+/gm, '')          // # headers
+    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')  // ***bold italic***
+    .replace(/\*\*(.+?)\*\*/g, '$1')      // **bold**
+    .replace(/\*(.+?)\*/g, '$1')          // *italic*
+    .replace(/__(.+?)__/g, '$1')          // __bold__
+    .replace(/_(.+?)_/g, '$1')            // _italic_
+    .replace(/^[-*•]\s+/gm, '')           // bullet points
+    .replace(/^>\s+/gm, '')               // blockquotes
+    .replace(/```[\s\S]*?```/g, '')        // code blocks
+    .replace(/`(.+?)`/g, '$1')            // inline code
+    .replace(/\[(.+?)\]\(.*?\)/g, '$1')   // links
+    .replace(/---+/g, '')                  // horizontal rules
+    .replace(/\n{3,}/g, '\n\n');           // excess newlines
 }
 
 export default StatsPanel;
