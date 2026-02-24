@@ -7,6 +7,7 @@ import SchoolProfile, { decileColor } from './components/SchoolProfile';
 import ComparisonTray from './components/ComparisonTray';
 import ComparePanel from './components/ComparePanel';
 import SimilarSchoolsPanel from './components/SimilarSchoolsPanel';
+import StatsPanel from './components/StatsPanel';
 import { parseSearchQuery, applyFilters } from './utils/searchParser';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'pk.your_token_here';
@@ -286,53 +287,7 @@ const App = () => {
       )}
 
       {!showLanding && showStats && (
-        <div className="stats-overlay" onClick={() => setShowStats(false)}>
-          <div className="stats-panel" onClick={e => e.stopPropagation()}>
-            <button className="stats-close" onClick={() => setShowStats(false)}>✕</button>
-            <div className="stats-title">{activeFilters ? 'Filtered Results' : 'All Schools'}</div>
-            <div className="stats-subtitle">State-funded schools in England · {stats.total.toLocaleString()} schools</div>
-            <div className="stats-grid">
-              <div className="stat-row"><span className="stat-label">Total pupils</span><span className="stat-value">{stats.totalPupils?.toLocaleString() || '—'}</span></div>
-              <div className="stat-row"><span className="stat-label">Local authorities</span><span className="stat-value">{stats.uniqueLAs}</span></div>
-              {stats.uniqueTrusts > 0 && <div className="stat-row"><span className="stat-label">Trusts</span><span className="stat-value">{stats.uniqueTrusts}</span></div>}
-              <div className="stat-divider" />
-              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>By Phase</div>
-              {Object.entries(stats.phases).sort((a, b) => b[1] - a[1]).map(([phase, count]) => (
-                <div key={phase} className="stat-bar-row">
-                  <div className="stat-bar-label"><span>{phase}</span><span>{count.toLocaleString()} ({Math.round(count / stats.total * 100)}%)</span></div>
-                  <div className="stat-bar"><div className="stat-bar-fill" style={{ width: `${(count / stats.total) * 100}%`, background: PHASE_COLORS[phase] || '#64748b' }} /></div>
-                </div>
-              ))}
-              <div className="stat-divider" />
-              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ofsted</div>
-              {ofstedOrder.map(o => stats.ofstedCounts[o] ? (
-                <div key={o} className="stat-bar-row">
-                  <div className="stat-bar-label"><span>{o}</span><span>{stats.ofstedCounts[o].toLocaleString()} ({Math.round(stats.ofstedCounts[o] / stats.ofstedTotal * 100)}%)</span></div>
-                  <div className="stat-bar"><div className="stat-bar-fill" style={{ width: `${(stats.ofstedCounts[o] / stats.ofstedTotal) * 100}%`, background: ofstedColors[o] }} /></div>
-                </div>
-              ) : null)}
-              {stats.a8Count > 0 && (<>
-                <div className="stat-divider" />
-                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>KS4 Performance ({stats.a8Count.toLocaleString()} schools)</div>
-                <div className="stat-row"><span className="stat-label">Average Attainment 8</span><span className="stat-value">{stats.avgA8?.toFixed(1)}</span></div>
-                <div className="stat-row"><span className="stat-label">Median Attainment 8</span><span className="stat-value">{stats.medA8?.toFixed(1)}</span></div>
-                {stats.p8Count > 0 && <div className="stat-row"><span className="stat-label">Average Progress 8 (2024)</span><span className="stat-value">{(stats.avgP8 > 0 ? '+' : '') + stats.avgP8?.toFixed(2)}</span></div>}
-              </>)}
-              {stats.ks2rwmCount > 0 && (<>
-                <div className="stat-divider" />
-                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>KS2 Performance ({stats.ks2rwmCount.toLocaleString()} schools)</div>
-                <div className="stat-row"><span className="stat-label">Average RWM Expected</span><span className="stat-value">{stats.avgKS2RWM?.toFixed(0)}%</span></div>
-                {stats.avgKS2Read != null && <div className="stat-row"><span className="stat-label">Average Reading Score</span><span className="stat-value">{stats.avgKS2Read?.toFixed(0)}</span></div>}
-              </>)}
-              {stats.avgFSM != null && (<>
-                <div className="stat-divider" />
-                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Context</div>
-                <div className="stat-row"><span className="stat-label">Average FSM %</span><span className="stat-value">{stats.avgFSM?.toFixed(1)}%</span></div>
-                <div className="stat-row"><span className="stat-label">Average School Size</span><span className="stat-value">{stats.avgPupils ? Math.round(stats.avgPupils).toLocaleString() : '—'}</span></div>
-              </>)}
-            </div>
-          </div>
-        </div>
+        <StatsPanel filtered={filtered} allSchools={schoolsData} activeFilters={activeFilters} onClose={() => setShowStats(false)} />
       )}
 
       {!showLanding && (
