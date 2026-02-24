@@ -79,6 +79,10 @@
 .rise-list-name { display: block; font-size: 0.82rem; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rise-list-la { display: block; font-size: 0.68rem; color: #94a3b8; }
 .rise-list-z { font-size: 0.82rem; font-weight: 700; flex-shrink: 0; }
+.rise-list-stats {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  font-size: 0.72rem; font-weight: 700; color: #334155; flex-shrink: 0;
+}
 
 .rise-method {
   font-size: 0.72rem; color: #94a3b8; line-height: 1.5;

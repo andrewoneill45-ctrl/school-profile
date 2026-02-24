@@ -7,6 +7,7 @@ const METRICS = {
     { x: 'fsm_pct', y: 'p8_prev', xl: 'FSM %', yl: 'Progress 8', title: 'Disadvantage vs Progress' },
     { x: 'sen_all_pct', y: 'attainment8', xl: 'SEN %', yl: 'Attainment 8', title: 'SEN vs Attainment' },
     { x: 'eal_pct', y: 'attainment8', xl: 'EAL %', yl: 'Attainment 8', title: 'EAL vs Attainment' },
+    { x: '_a8_change', y: 'p8_prev', xl: 'A8 3-Year Change', yl: 'Progress 8 (2024)', title: '★ Dynamic Schools', isDynamic: true },
   ],
   primary: [
     { x: 'fsm_pct', y: 'ks2_rwm_exp', xl: 'FSM %', yl: 'RWM Expected %', title: 'Disadvantage vs KS2' },
@@ -55,7 +56,20 @@ const RiseMode = ({ schools, allSchools, onSelectSchool, onClose }) => {
   const m = metrics[metricIdx] || metrics[0];
 
   const data = useMemo(() => {
-    const points = schools
+    // For Dynamic Schools, compute A8 3-year change from ks4_trend
+    let workingSchools = schools;
+    if (m.isDynamic) {
+      workingSchools = schools.map(s => {
+        if (!s.ks4_trend || s.ks4_trend.length < 2) return s;
+        const validYears = s.ks4_trend.filter(t => t.a8 != null).sort((a, b) => (a.year || 0) - (b.year || 0));
+        if (validYears.length < 2) return s;
+        const first = validYears[0].a8;
+        const last = validYears[validYears.length - 1].a8;
+        return { ...s, _a8_change: last - first };
+      });
+    }
+
+    const points = workingSchools
       .filter(s => s[m.x] != null && s[m.y] != null)
       .map(s => ({ school: s, x: s[m.x], y: s[m.y] }));
 
@@ -102,6 +116,14 @@ const RiseMode = ({ schools, allSchools, onSelectSchool, onClose }) => {
   };
 
   const dotColor = (p) => {
+    // Dynamic Schools: colour by quadrant
+    if (m.isDynamic) {
+      if (p.x > 0 && p.y > 0) return '#0d7a42';  // Rising Stars (improving A8 + positive P8)
+      if (p.x <= 0 && p.y > 0) return '#1d5a9e';  // Strong & Steady (stable/declining A8 but positive P8)
+      if (p.x > 0 && p.y <= 0) return '#e8920e';  // Improving from Low (improving A8 but negative P8)
+      return '#cc3333';                              // Declining (both negative)
+    }
+    // Default: regression residual
     if (!p.zScore) return '#94a3b8';
     if (p.zScore > 1.2) return '#0d7a42';
     if (p.zScore < -1.2) return '#cc3333';
@@ -113,7 +135,10 @@ const RiseMode = ({ schools, allSchools, onSelectSchool, onClose }) => {
       <div className="rise-panel">
         <button className="rise-close" onClick={onClose}>✕ Close</button>
         <h2 className="rise-title">RISE Mode — Contextual Analysis</h2>
-        <p className="rise-subtitle">Identifying schools performing above or below expectation given their context. Green dots outperform; red dots underperform the regression line by 1+ standard deviations.</p>
+        <p className="rise-subtitle">{m.isDynamic
+          ? 'Dynamic Schools: plotting 3-year Attainment 8 trajectory against Progress 8. Top-right = rising stars (improving attainment with strong value-added). Bottom-left = schools in decline. Schools need ks4_trend data with 2+ years to appear.'
+          : 'Identifying schools performing above or below expectation given their context. Green dots outperform; red dots underperform the regression line by 1+ standard deviations.'
+        }</p>
 
         <div className="rise-metric-tabs">
           {metrics.map((mt, i) => (
@@ -142,6 +167,26 @@ const RiseMode = ({ schools, allSchools, onSelectSchool, onClose }) => {
                 <text x={x} y={H - P + 18} textAnchor="middle" fontSize="10" fill="#94a3b8">{xVal.toFixed(0)}</text>
               </g>;
             })}
+
+            {/* Zero line for P8-type y-axis */}
+            {(m.yl.includes('P8') || m.yl.includes('Progress')) && data.yMin < 0 && data.yMax > 0 && (
+              <line x1={P} y1={scaleY(0)} x2={W - P} y2={scaleY(0)} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,3" />
+            )}
+
+            {/* Zero line for x-axis on Dynamic Schools (A8 change = 0) */}
+            {m.isDynamic && data.xMin < 0 && data.xMax > 0 && (
+              <line x1={scaleX(0)} y1={P} x2={scaleX(0)} y2={H - P} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,3" />
+            )}
+
+            {/* Quadrant labels for Dynamic Schools */}
+            {m.isDynamic && (
+              <>
+                <text x={W - P - 8} y={P + 16} textAnchor="end" fontSize="10" fill="#0d7a42" fontWeight="700" opacity="0.5">Rising Stars</text>
+                <text x={P + 8} y={P + 16} textAnchor="start" fontSize="10" fill="#1d5a9e" fontWeight="700" opacity="0.5">Strong &amp; Steady</text>
+                <text x={P + 8} y={H - P - 8} textAnchor="start" fontSize="10" fill="#cc3333" fontWeight="700" opacity="0.5">Declining</text>
+                <text x={W - P - 8} y={H - P - 8} textAnchor="end" fontSize="10" fill="#e8920e" fontWeight="700" opacity="0.5">Improving from Low</text>
+              </>
+            )}
 
             {/* Regression line */}
             {data.reg && (
@@ -192,6 +237,46 @@ const RiseMode = ({ schools, allSchools, onSelectSchool, onClose }) => {
 
         {/* Tables */}
         <div className="rise-lists">
+          {m.isDynamic ? (<>
+            <div className="rise-list">
+              <h3 className="rise-list-title rise-list-over">Rising Stars ({data.points.filter(p => p.x > 0 && p.y > 0).length})</h3>
+              <p className="rise-list-desc">Improving Attainment 8 trajectory with positive Progress 8 — schools on an upward path</p>
+              <div className="rise-list-scroll">
+                {data.points.filter(p => p.x > 0 && p.y > 0).sort((a, b) => (b.x + b.y) - (a.x + a.y)).slice(0, 20).map((p, i) => (
+                  <button key={i} className="rise-list-item" onClick={() => onSelectSchool && onSelectSchool(p.school)}>
+                    <span className="rise-list-rank">{i + 1}</span>
+                    <div className="rise-list-info">
+                      <span className="rise-list-name">{p.school.name}</span>
+                      <span className="rise-list-la">{p.school.la} · {p.school.ofsted || '—'}</span>
+                    </div>
+                    <div className="rise-list-stats">
+                      <span style={{ color: '#0d7a42' }}>A8 {p.x > 0 ? '↑' : '↓'}{Math.abs(p.x).toFixed(1)}</span>
+                      <span>P8 {p.y > 0 ? '+' : ''}{p.y.toFixed(2)}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="rise-list">
+              <h3 className="rise-list-title rise-list-under">Declining ({data.points.filter(p => p.x < 0 && p.y < 0).length})</h3>
+              <p className="rise-list-desc">Falling Attainment 8 with negative Progress 8 — schools that may need targeted support</p>
+              <div className="rise-list-scroll">
+                {data.points.filter(p => p.x < 0 && p.y < 0).sort((a, b) => (a.x + a.y) - (b.x + b.y)).slice(0, 20).map((p, i) => (
+                  <button key={i} className="rise-list-item" onClick={() => onSelectSchool && onSelectSchool(p.school)}>
+                    <span className="rise-list-rank">{i + 1}</span>
+                    <div className="rise-list-info">
+                      <span className="rise-list-name">{p.school.name}</span>
+                      <span className="rise-list-la">{p.school.la} · {p.school.ofsted || '—'}</span>
+                    </div>
+                    <div className="rise-list-stats">
+                      <span style={{ color: '#cc3333' }}>A8 {p.x > 0 ? '↑' : '↓'}{Math.abs(p.x).toFixed(1)}</span>
+                      <span>P8 {p.y.toFixed(2)}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>) : (<>
           <div className="rise-list">
             <h3 className="rise-list-title rise-list-over">Overperformers ({data.overperformers.length})</h3>
             <p className="rise-list-desc">Schools achieving significantly better outcomes than predicted by their context</p>
@@ -224,6 +309,7 @@ const RiseMode = ({ schools, allSchools, onSelectSchool, onClose }) => {
               ))}
             </div>
           </div>
+          </>)}
         </div>
 
         <div className="rise-method">
