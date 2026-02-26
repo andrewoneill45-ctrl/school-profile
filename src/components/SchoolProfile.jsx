@@ -171,6 +171,8 @@ const DecileInfoPopup = ({ onClose }) => (
 const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
   const s = school;
   const [showInfo, setShowInfo] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfStatus, setPdfStatus] = useState('');
   if (!s) return null;
 
   const isSecondary = s.phase === 'Secondary' || s.phase === 'All-through';
@@ -339,9 +341,15 @@ const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
         )}
 
         <div className="sp-actions">
-          <button className="sp-btn sp-btn-primary" onClick={() => exportSchoolPDF(s, allSchools)}>
+          <button className="sp-btn sp-btn-primary" disabled={pdfLoading} onClick={async () => {
+            setPdfLoading(true); setPdfStatus('');
+            try {
+              await exportSchoolPDF(s, allSchools, (msg) => setPdfStatus(msg));
+            } catch (err) { console.error(err); }
+            setPdfLoading(false); setPdfStatus('');
+          }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
-            PDF
+            {pdfLoading ? pdfStatus || 'Generating…' : '✦ AI Briefing PDF'}
           </button>
           {onCompare && <button className="sp-btn sp-btn-secondary" onClick={() => onCompare(s)}>+ Compare</button>}
           <button className="sp-btn sp-btn-similar" onClick={() => { if (school.onFindSimilar) school.onFindSimilar(s); }}>
