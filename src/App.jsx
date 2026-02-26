@@ -74,6 +74,15 @@ const HoverCard = ({ school, onViewProfile }) => {
         {s.fsm_pct != null && <HM label="FSM" value={s.fsm_pct + '%'} />}
       </div>
 
+      {s.ofsted_qoe && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '2px 10px', marginTop: 6, paddingTop: 6, borderTop: '1px solid #e2e8f0' }}>
+          <OJ label="Quality of Ed" grade={s.ofsted_qoe} />
+          <OJ label="Behaviour" grade={s.ofsted_behaviour} />
+          <OJ label="Personal Dev" grade={s.ofsted_personal_dev} />
+          <OJ label="Leadership" grade={s.ofsted_leadership} />
+        </div>
+      )}
+
       {isSec && (s.attainment8 != null || s.p8_prev != null) && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 12px', marginTop: 6, paddingTop: 6, borderTop: '1px solid #e2e8f0' }}>
           {s.attainment8 != null && <HM label="Attainment 8" value={s.attainment8.toFixed(1)} color={decileColor(quickDecile(s.attainment8, s.phase, 'attainment8'))} big />}
@@ -105,6 +114,14 @@ const HoverCard = ({ school, onViewProfile }) => {
   );
 };
 
+const OJ_COLORS = { Outstanding: '#0d7a42', Good: '#1d5a9e', 'Requires improvement': '#e8920e', Inadequate: '#cc3333' };
+const OJ = ({ label, grade }) => grade ? (
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>{label}</span>
+    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: OJ_COLORS[grade] || '#94a3b8' }}>{grade === 'Requires improvement' ? 'RI' : grade}</span>
+  </div>
+) : null;
+
 const HM = ({ label, value, big, color }) => (
   <div>
     <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>{label}</div>
@@ -133,15 +150,32 @@ const App = () => {
   const [showRise, setShowRise] = useState(false);
 
   useEffect(() => {
-    fetch('/schools.json')
-      .then(r => r.json())
-      .then(raw => {
-        initData(raw);
-        setSchoolsData(_schoolsData);
-        setSchoolsByUrn(_schoolsByUrn);
-        setLoading(false);
-      })
-      .catch(err => { console.error('Failed to load schools data:', err); setLoading(false); });
+    Promise.all([
+      fetch('/schools.json').then(r => r.json()),
+      fetch('/ofsted.json').then(r => r.json()).catch(() => ({})),
+    ]).then(([raw, ofsted]) => {
+      initData(raw);
+      // Merge Ofsted sub-judgements by URN
+      const GRADE = { 1: 'Outstanding', 2: 'Good', 3: 'Requires improvement', 4: 'Inadequate', 0: 'Not judged' };
+      _schoolsData.forEach(s => {
+        const o = ofsted[String(s.urn)];
+        if (!o) return;
+        if (o.oe) s.ofsted_overall = GRADE[o.oe] || null;
+        if (o.qe) s.ofsted_qoe = GRADE[o.qe] || null;
+        if (o.lm) s.ofsted_leadership = GRADE[o.lm] || null;
+        if (o.pd) s.ofsted_personal_dev = GRADE[o.pd] || null;
+        if (o.ba) s.ofsted_behaviour = GRADE[o.ba] || null;
+        if (o.ey) s.ofsted_early_years = GRADE[o.ey] || null;
+        if (o.sf) s.ofsted_sixth_form = GRADE[o.sf] || null;
+        if (o.sg != null) s.ofsted_safeguarding = o.sg === 1 ? 'Effective' : 'Not effective';
+        if (o.id) s.ofsted_date = o.id;
+        // Update main ofsted field if we have a more current one
+        if (o.oe && GRADE[o.oe]) s.ofsted = GRADE[o.oe];
+      });
+      setSchoolsData(_schoolsData);
+      setSchoolsByUrn(_schoolsByUrn);
+      setLoading(false);
+    }).catch(err => { console.error('Failed to load data:', err); setLoading(false); });
   }, []);
 
   const filtered = useMemo(() => activeFilters ? applyFilters(schoolsData, activeFilters) : schoolsData, [activeFilters, schoolsData]);

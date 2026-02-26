@@ -37,6 +37,20 @@
   display: inline-block; padding: 3px 12px; border-radius: 99px;
   color: white; font-size: 0.72rem; font-weight: 700;
 }
+.sp-ofsted-date {
+  font-size: 0.68rem; color: #94a3b8; margin-left: 8px;
+}
+.sp-ofsted-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: #f1f5f9; border-radius: 12px; overflow: hidden;
+  margin-bottom: 16px;
+}
+.sp-ofsted-judge {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; background: white;
+}
+.sp-oj-label { font-size: 0.75rem; color: #64748b; }
+.sp-oj-grade { font-size: 0.75rem; font-weight: 700; }
 
 /* Facts grid */
 .sp-facts {

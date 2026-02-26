@@ -83,7 +83,7 @@ export function buildSchoolContext(filtered, allSchools) {
   const schoolsToSend = filtered.slice(0, 200);
   if (schoolsToSend.length > 0) {
     lines.push(`\nSCHOOL DATA (${schoolsToSend.length} of ${n}):`);
-    lines.push('name | la | phase | ofsted | pupils | fsm% | sen% | eal% | A8 | P8 | 4+% | 5+% | RWM% | read | trust');
+    lines.push('name | la | phase | ofsted | pupils | fsm% | sen% | eal% | A8 | P8 | 4+% | 5+% | RWM% | read | trust | QoE | Behaviour | PersonalDev | Leadership');
     schoolsToSend.forEach(s => {
       lines.push([
         s.name, s.la, s.phase, s.ofsted || '-',
@@ -92,6 +92,7 @@ export function buildSchoolContext(filtered, allSchools) {
         s.basics_94 ?? '-', s.basics_95 ?? '-',
         s.ks2_rwm_exp ?? '-', s.ks2_read_avg?.toFixed(0) ?? '-',
         s.trust ? s.trust.substring(0, 30) : '-',
+        s.ofsted_qoe || '-', s.ofsted_behaviour || '-', s.ofsted_personal_dev || '-', s.ofsted_leadership || '-',
       ].join(' | '));
     });
     if (n > 200) lines.push(`... and ${n - 200} more schools not shown.`);

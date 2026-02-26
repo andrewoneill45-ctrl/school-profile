@@ -235,7 +235,28 @@ const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
           {s.ofsted && s.ofsted !== 'Not inspected' && (
             <span className="sp-ofsted" style={{ background: ofstedColor(s.ofsted) }}>{s.ofsted}</span>
           )}
+          {s.ofsted_date && <span className="sp-ofsted-date">Inspected {s.ofsted_date}</span>}
         </div>
+
+        {/* Ofsted Sub-judgements */}
+        {s.ofsted_qoe && (
+          <div className="sp-ofsted-grid">
+            <OfstedJudge label="Quality of Education" grade={s.ofsted_qoe} />
+            <OfstedJudge label="Behaviour & Attitudes" grade={s.ofsted_behaviour} />
+            <OfstedJudge label="Personal Development" grade={s.ofsted_personal_dev} />
+            <OfstedJudge label="Leadership & Management" grade={s.ofsted_leadership} />
+            {s.ofsted_early_years && <OfstedJudge label="Early Years" grade={s.ofsted_early_years} />}
+            {s.ofsted_sixth_form && <OfstedJudge label="Sixth Form" grade={s.ofsted_sixth_form} />}
+            {s.ofsted_safeguarding && (
+              <div className="sp-ofsted-judge">
+                <span className="sp-oj-label">Safeguarding</span>
+                <span className="sp-oj-grade" style={{ color: s.ofsted_safeguarding === 'Effective' ? '#0d7a42' : '#cc3333' }}>
+                  {s.ofsted_safeguarding}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="sp-facts">
           {s.pupils != null && <Fact label="Pupils" value={s.pupils.toLocaleString()} sub={occupancy ? `${occupancy}% full` : null} />}
@@ -336,6 +357,17 @@ const SchoolProfile = ({ school, allSchools, onClose, onCompare }) => {
 
 /* ─── Sub-components ───────────────────────────── */
 function avg(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null; }
+
+const OfstedJudge = ({ label, grade }) => {
+  if (!grade) return null;
+  const color = { Outstanding: '#0d7a42', Good: '#1d5a9e', 'Requires improvement': '#e8920e', Inadequate: '#cc3333' }[grade] || '#94a3b8';
+  return (
+    <div className="sp-ofsted-judge">
+      <span className="sp-oj-label">{label}</span>
+      <span className="sp-oj-grade" style={{ color }}>{grade}</span>
+    </div>
+  );
+};
 
 const Fact = ({ label, value, sub }) => (
   <div className="sp-fact">

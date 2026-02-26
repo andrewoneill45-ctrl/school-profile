@@ -157,9 +157,20 @@ function buildNarrative(s, all) {
   // Ofsted
   if (s.ofsted && s.ofsted !== 'Not inspected') {
     let of = 'Ofsted rating: ' + s.ofsted + '. ';
+    if (s.ofsted_date) of += 'Last inspected ' + s.ofsted_date + '. ';
     const oc = {}; same.forEach(x => { if (x.ofsted && x.ofsted !== 'Not inspected') oc[x.ofsted] = (oc[x.ofsted] || 0) + 1; });
     const tot = Object.values(oc).reduce((a, b) => a + b, 0);
     if (tot) of += Math.round((oc[s.ofsted] || 0) / tot * 100) + '% of ' + s.phase.toLowerCase() + ' schools nationally hold this rating. ';
+    if (s.ofsted_qoe) {
+      of += '\n\nSub-judgements: ';
+      of += 'Quality of Education: ' + s.ofsted_qoe + '. ';
+      if (s.ofsted_behaviour) of += 'Behaviour and Attitudes: ' + s.ofsted_behaviour + '. ';
+      if (s.ofsted_personal_dev) of += 'Personal Development: ' + s.ofsted_personal_dev + '. ';
+      if (s.ofsted_leadership) of += 'Leadership and Management: ' + s.ofsted_leadership + '. ';
+      if (s.ofsted_early_years) of += 'Early Years: ' + s.ofsted_early_years + '. ';
+      if (s.ofsted_sixth_form) of += 'Sixth Form: ' + s.ofsted_sixth_form + '. ';
+      if (s.ofsted_safeguarding) of += 'Safeguarding: ' + s.ofsted_safeguarding + '. ';
+    }
     sections.push({ title: 'Ofsted', text: of });
   }
 
