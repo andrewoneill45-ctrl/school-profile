@@ -3,17 +3,17 @@ import './RiseMode.css';
 
 const METRICS = {
   secondary: [
-    { x: 'fsm_pct', y: 'attainment8', xl: 'FSM %', yl: 'Attainment 8', title: 'Disadvantage vs Attainment' },
-    { x: 'fsm_pct', y: 'p8_prev', xl: 'FSM %', yl: 'Progress 8', title: 'Disadvantage vs Progress' },
+    { x: 'ks4_fsm_pct', y: 'attainment8', xl: 'FSM %', yl: 'Attainment 8', title: 'Disadvantage vs Attainment' },
+    { x: 'ks4_fsm_pct', y: 'p8_prev', xl: 'FSM %', yl: 'Progress 8', title: 'Disadvantage vs Progress' },
     { x: 'sen_all_pct', y: 'attainment8', xl: 'SEN %', yl: 'Attainment 8', title: 'SEN vs Attainment' },
     { x: 'eal_pct', y: 'attainment8', xl: 'EAL %', yl: 'Attainment 8', title: 'EAL vs Attainment' },
     { x: '_a8_change', y: 'p8_prev', xl: 'A8 3-Year Change', yl: 'Progress 8 (2024)', title: '★ Dynamic Schools', isDynamic: true },
   ],
   primary: [
-    { x: 'fsm_pct', y: 'ks2_rwm_exp', xl: 'FSM %', yl: 'RWM Expected %', title: 'Disadvantage vs KS2' },
+    { x: 'ks2_fsm_pct', y: 'ks2_rwm_exp', xl: 'FSM %', yl: 'RWM Expected %', title: 'Disadvantage vs KS2' },
     { x: 'sen_all_pct', y: 'ks2_rwm_exp', xl: 'SEN %', yl: 'RWM Expected %', title: 'SEN vs KS2' },
     { x: 'eal_pct', y: 'ks2_rwm_exp', xl: 'EAL %', yl: 'RWM Expected %', title: 'EAL vs KS2' },
-    { x: 'fsm_pct', y: 'ks2_read_avg', xl: 'FSM %', yl: 'Reading Score', title: 'Disadvantage vs Reading' },
+    { x: 'ks2_fsm_pct', y: 'ks2_read_avg', xl: 'FSM %', yl: 'Reading Score', title: 'Disadvantage vs Reading' },
   ],
 };
 
@@ -60,12 +60,18 @@ const RiseMode = ({ schools, allSchools, onSelectSchool, onClose }) => {
     let workingSchools = schools;
     if (m.isDynamic) {
       workingSchools = schools.map(s => {
-        if (!s.ks4_trend || s.ks4_trend.length < 2) return s;
-        const validYears = s.ks4_trend.filter(t => t.a8 != null).sort((a, b) => (a.year || 0) - (b.year || 0));
-        if (validYears.length < 2) return s;
-        const first = validYears[0].a8;
-        const last = validYears[validYears.length - 1].a8;
-        return { ...s, _a8_change: last - first };
+        // Use ks4_trend if available, otherwise a8 vs a8_prev
+        if (s.ks4_trend && s.ks4_trend.length >= 2) {
+          const validYears = s.ks4_trend.filter(t => t.a8 != null).sort((a, b) => (a.year || 0) - (b.year || 0));
+          if (validYears.length >= 2) {
+            const first = validYears[0].a8, last = validYears[validYears.length - 1].a8;
+            return { ...s, _a8_change: last - first };
+          }
+        }
+        if (s.attainment8 != null && s.a8_prev != null) {
+          return { ...s, _a8_change: Math.round((s.attainment8 - s.a8_prev) * 10) / 10 };
+        }
+        return s;
       });
     }
 

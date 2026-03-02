@@ -42,7 +42,7 @@ const ComparePanel = ({ schools, allSchools, onRemove, onClose }) => {
           <Row label="FSM %" values={schools.map(s => s.fsm_pct)} fmt={v => v + '%'} />
           {isSecondary && <>
             <Row label="Attainment 8" values={schools.map(s => s.attainment8)} fmt={v => v.toFixed(1)} highlight />
-            <Row label="Progress 8" values={schools.map(s => s.progress8)} fmt={v => (v > 0 ? '+' : '') + v.toFixed(2)} highlight />
+            <Row label="Progress 8" values={schools.map(s => s.p8_prev ?? s.progress8)} fmt={v => (v > 0 ? '+' : '') + v.toFixed(2)} highlight />
             <Row label="Eng & Maths 4+" values={schools.map(s => s.basics_94)} fmt={v => v + '%'} highlight />
             <Row label="Eng & Maths 5+" values={schools.map(s => s.basics_95)} fmt={v => v + '%'} highlight />
           </>}
